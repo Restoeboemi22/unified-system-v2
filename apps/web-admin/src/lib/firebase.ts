@@ -3,13 +3,12 @@ import { getAuth } from "firebase/auth";
 import { env } from "@/utils/env";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDhNn60YGopgeG5heXpcEFFZ6qX5HB3ho0",
-  authDomain: "smpn3pacet-app.firebaseapp.com",
-  databaseURL: "https://smpn3pacet-app-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "smpn3pacet-app",
-  storageBucket: "smpn3pacet-app.firebasestorage.app",
-  messagingSenderId: "786816320664",
-  appId: "1:786816320664:web:e8823c4d1451a03101bced",
+  apiKey: "AIzaSyAtagZsTUB6CT0ZVc4rr9l5OrqKBYgJorY",
+  authDomain: "v2-portalkita-smpn3.firebaseapp.com",
+  projectId: "v2-portalkita-smpn3",
+  storageBucket: "v2-portalkita-smpn3.firebasestorage.app",
+  messagingSenderId: "1043293333665",
+  appId: "1:1043293333665:web:cfb4a739812f83bbb8e8e0",
 };
 
 // Initialize Firebase (Singleton pattern to avoid multiple instances)
