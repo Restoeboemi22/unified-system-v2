@@ -1,97 +1,190 @@
-# Panduan Deployment Unified-System V2
+# 🚀 Panduan Deployment Unified-System V2
 
-Dokumen ini berisi panduan teknis langkah demi langkah untuk melakukan *deployment* (peluncuran) sistem V2 ke *cloud* untuk pengujian secara paralel dengan V1 (A/B Testing).
-
-## Arsitektur Deployment
-
-Sistem V2 kita terdiri dari:
-1. **1 Frontend** (Web Admin) yang dibangun dengan React (Vite).
-2. **5 Microservices Backend** yang dibangun dengan Node.js (NestJS).
-3. **1 Database Relasional** (PostgreSQL).
-
-Untuk merilis ini dengan mulus (dan dengan biaya serendah mungkin), kami menyarankan menggunakan kombinasi layanan berikut:
-- **Supabase** atau **Neon.tech** (Untuk Database PostgreSQL gratis)
-- **Railway.app** (Untuk 5 Microservices Backend, sangat ramah *monorepo* dan Node.js)
-- **Firebase Hosting** (Untuk Frontend Web Admin, sangat stabil dan Anda sudah terbiasa dengan ini)
+Dokumen ini adalah panduan teknis lengkap dan terkini untuk melakukan *deployment* sistem V2 ke VPS Hostinger menggunakan Docker.
 
 ---
 
-## Langkah 1: Persiapan Database (Supabase)
-1. Buat akun di [Supabase.com](https://supabase.com).
-2. Buat _project_ baru.
-3. Masuk ke **Project Settings -> Database** dan cari bagian **Connection string (URI)**.
-4. Salin URI tersebut, yang berformat `postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres`.
-5. Ubah `[PASSWORD]` dengan kata sandi proyek Anda.
-6. Simpan URI ini untuk digunakan di Langkah 2.
+## 🏗️ Arsitektur Deployment
 
-> **Opsional**: Setelah database berhasil terhubung ke *backend*, Anda dapat menjalankan perintah `npx prisma db push` dari lokal komputer Anda (sambil menyetel `DATABASE_URL` ke URI Supabase) untuk secara otomatis membuat seluruh tabel *database* di Supabase.
+| Komponen | Teknologi | Keterangan |
+|---|---|---|
+| **Backend (5 Services)** | NestJS + Docker | Di-*deploy* di VPS Hostinger |
+| **Database** | SQLite (per-service) | Tersimpan di dalam Docker Volume |
+| **Frontend** | React (Vite) | Di-*deploy* di Firebase Hosting |
 
----
+### Port Masing-masing Service
+| Service | Port |
+|---|---|
+| `session-service` | `4001` |
+| `policy-service` | `4002` |
+| `tenant-school-service` | `4003` |
+| `academic-directory-service` | `4004` |
+| `attendance-service` | `4005` |
 
-## Langkah 2: Deploy Backend Microservices (Railway)
-Railway adalah *platform cloud* termudah untuk mendeploy aplikasi *monorepo*.
-
-1. Buat akun di [Railway.app](https://railway.app).
-2. Buat proyek baru dan pilih **"Deploy from GitHub repo"**.
-3. Hubungkan repositori GitHub tempat kode V2 ini disimpan.
-4. Karena kita punya 5 *microservices*, kita perlu men-*deploy* repositori ini **5 KALI** ke dalam proyek Railway yang sama, masing-masing dengan pengaturan yang berbeda.
-5. Saat men-*deploy* setiap _service_, masuk ke bagian **Settings**:
-   - **Root Directory**: Kosongkan (Biarkan di `/`).
-   - **Build Command**: Kosongkan (Railway akan mendeteksi `Dockerfile` yang telah kita buat).
-   - **Start Command**: Kosongkan (Akan diatur oleh Docker).
-6. Di bagian **Variables**, Anda wajib mengatur _Environment Variables_ berikut untuk masing-masing *service*:
-   - `SERVICE_PATH`: Lokasi folder *service*, misalnya: `services/session-service` atau `services/tenant-school-service`. Ini memberitahu Docker mana yang harus di-*build*.
-   - `DATABASE_URL`: URI Supabase yang Anda dapatkan di Langkah 1.
-   - Variabel Firebase Admin (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`) hanya dibutuhkan untuk `session-service` dan `tenant-school-service`.
-7. Setelah kelima layanan berhasil *deploy*, Railway akan memberikan URL publik untuk masing-masing layanan (misal: `session-service-production.up.railway.app`). Salin kelima URL ini!
+**IP Server VPS:** `76.13.176.231`
 
 ---
 
-## Langkah 3: Konfigurasi Komunikasi Antar-Layanan
-Setelah kelima layanan mendapat URL, Anda harus kembali mengedit **Variables** di Railway untuk semua layanan dan memasukkan URL rekan-rekan mereka:
-- `SESSION_SERVICE_BASE_URL`
-- `POLICY_SERVICE_BASE_URL`
-- `TENANT_SCHOOL_SERVICE_BASE_URL`
-- `ACADEMIC_DIRECTORY_SERVICE_BASE_URL`
-- `ATTENDANCE_SERVICE_BASE_URL`
+## ⚙️ BAGIAN 1: DEPLOY PERTAMA KALI
 
-(*Lihat file `.env.production.example` sebagai referensi*).
+### Langkah 1: Beli & Setup VPS di Hostinger
+1. Beli paket VPS di [Hostinger.com](https://hostinger.com) (minimal KVM 1).
+2. Pilih OS: **Ubuntu 24.04 LTS**.
+3. Centang fitur tambahan: **Pendeteksi Malware** dan **Docker Manager**.
+4. Buat *Root password* yang kuat dan simpan di tempat aman.
+5. Setelah server aktif, catat **IP Address**-nya.
 
 ---
 
-## Langkah 4: Deploy Frontend Web Admin (Firebase Hosting)
-Karena Anda memilih untuk menggunakan Firebase Hosting (seperti V1), saya sudah menyiapkan `firebase.json` di dalam _repository_ ini yang dikonfigurasi khusus untuk SPA React/Vite.
+### Langkah 2: Masuk ke Server (SSH)
 
-### Opsi A (Menimpa URL V1 Lama)
-Jika Anda ingin langsung menggunakan URL lama (menggantikan V1):
-1. Buka terminal komputer Anda.
-2. Jalankan perintah `firebase use smpn3pacet-app` (Ganti dengan Project ID Firebase lama Anda).
+Buka **CMD / Terminal** di laptop Anda, lalu jalankan:
+```bash
+ssh root@76.13.176.231
+```
+Ketik *password* Root Anda saat diminta *(layar tidak akan menampilkan karakter, itu normal)*.
 
-### Opsi B (Membuat URL Baru untuk A/B Testing - Disarankan)
-1. Buka [Firebase Console](https://console.firebase.google.com).
-2. Buat _Project_ baru (misalnya `v2-portal-smpn3`).
-3. Di terminal lokal Anda, jalankan `firebase login` lalu `firebase use v2-portal-smpn3` (sesuaikan dengan ID proyek baru).
+---
 
-### Proses Build & Deploy
-Sebelum mendeploy ke Firebase, Frontend harus tahu di mana lokasi 5 Backend API Anda.
+### Langkah 3: Unduh Kode dari GitHub
 
-1. Buat _file_ `.env.production` di dalam folder `apps/web-admin/` (jangan di *root*).
-2. Isi file tersebut dengan URL kelima *service backend* yang Anda dapatkan di Langkah 3, seperti ini:
-   ```env
-   VITE_SESSION_SERVICE_URL=https://session-service-production.up.railway.app
-   VITE_POLICY_SERVICE_URL=https://policy-service-production.up.railway.app
-   VITE_TENANT_SCHOOL_SERVICE_URL=https://tenant-school-service-production.up.railway.app
-   VITE_ACADEMIC_DIRECTORY_SERVICE_URL=https://academic-directory-service-production.up.railway.app
-   VITE_ATTENDANCE_SERVICE_URL=https://attendance-service-production.up.railway.app
-   ```
-3. Lakukan proses _build_:
-   Di terminal (root folder V2), jalankan:
-   ```bash
-   pnpm --filter web-admin run build
-   ```
-4. Setelah _build_ selesai (sukses membuat folder `apps/web-admin/dist`), jalankan perintah:
-   ```bash
-   firebase deploy --only hosting
-   ```
+> ⚠️ **PENTING:** Repositori GitHub harus berstatus **Public** sementara selama proses ini. Ubah kembali menjadi **Private** setelah selesai.
 
-Selamat! Firebase akan memberikan Anda URL *live* (misalnya `v2-portal-smpn3.web.app`). URL inilah yang dapat Anda uji coba di lapangan sebagai V2, berjalan secara paralel atau menggantikan V1 Anda!
+Jalankan perintah berikut **satu per satu** di dalam server:
+
+```bash
+apt-get install git -y
+```
+```bash
+git clone https://github.com/Restoeboemi22/unified-system-v2.git
+```
+```bash
+cd unified-system-v2
+```
+
+---
+
+### Langkah 4: Nyalakan Semua Service (Build & Deploy)
+
+Ini adalah perintah terpenting. Proses ini memakan waktu **3–5 menit** karena Docker mengunduh dan mengompilasi semua dependensi.
+
+```bash
+docker compose up -d --build
+```
+
+Jika sukses, Anda akan melihat output seperti:
+```
+✔ Container session-service              Started
+✔ Container policy-service               Started
+✔ Container tenant-school-service        Started
+✔ Container academic-directory-service   Started
+✔ Container attendance-service           Started
+```
+
+---
+
+## 🔄 BAGIAN 2: UPDATE KODE (Setelah Ada Perubahan)
+
+Setiap kali ada perubahan kode yang sudah di-*push* ke GitHub, lakukan langkah berikut di server:
+
+```bash
+# 1. Masuk ke server (jika belum)
+ssh root@76.13.176.231
+
+# 2. Masuk ke folder proyek
+cd unified-system-v2
+
+# 3. Ambil perubahan terbaru dari GitHub
+#    (pastikan repositori Public sementara)
+git pull
+
+# 4. Rakit ulang dan restart semua service
+docker compose up -d --build
+```
+
+---
+
+## 🛠️ BAGIAN 3: PERINTAH OPERASIONAL SEHARI-HARI
+
+Setelah masuk ke server via SSH dan berada di dalam folder `unified-system-v2/`:
+
+```bash
+# Cek status semua service (Running/Stopped)
+docker compose ps
+
+# Lihat log/catatan error sebuah service secara langsung
+docker compose logs -f session-service
+docker compose logs -f policy-service
+
+# Restart sebuah service tanpa rebuild
+docker compose restart session-service
+
+# Matikan semua service
+docker compose down
+
+# Nyalakan ulang semua service (tanpa rebuild)
+docker compose up -d
+```
+
+---
+
+## 🌐 BAGIAN 4: DEPLOY FRONTEND (Firebase Hosting)
+
+### Langkah 1: Buat File Konfigurasi Produksi
+Buat file `.env.production` di dalam folder `apps/web-admin/`:
+```env
+VITE_SESSION_SERVICE_URL=http://76.13.176.231:4001
+VITE_POLICY_SERVICE_URL=http://76.13.176.231:4002
+VITE_TENANT_SCHOOL_SERVICE_URL=http://76.13.176.231:4003
+VITE_ACADEMIC_DIRECTORY_SERVICE_URL=http://76.13.176.231:4004
+VITE_ATTENDANCE_SERVICE_URL=http://76.13.176.231:4005
+```
+
+### Langkah 2: Build Frontend
+Jalankan di terminal laptop Anda (bukan di server VPS):
+```bash
+pnpm --filter web-admin run build
+```
+
+### Langkah 3: Deploy ke Firebase
+```bash
+firebase deploy --only hosting
+```
+
+---
+
+## 🔒 BAGIAN 5: KEAMANAN & TIPS PENTING
+
+| ✅ Yang Harus Dilakukan | ❌ Yang Harus Dihindari |
+|---|---|
+| Simpan Root Password di tempat aman | Jangan bagikan Root Password |
+| Kembalikan GitHub ke Private setelah `git pull` | Jangan biarkan repo Public lebih dari 5 menit |
+| Cek log jika ada service yang Error | Jangan jalankan `docker compose down -v` (data hilang!) |
+| Backup data secara berkala via Hostinger Dashboard | |
+
+### ⚠️ Peringatan Volume Data
+Perintah `docker compose down` aman digunakan — data database **TIDAK** akan terhapus.
+Namun **JANGAN** jalankan `docker compose down -v` karena `-v` akan **menghapus semua data database** secara permanen.
+
+---
+
+## 🔧 BAGIAN 6: TROUBLESHOOTING (Pemecahan Masalah)
+
+### Service tidak mau start / terus Restart
+```bash
+# Lihat pesan error spesifiknya
+docker compose logs nama-service
+```
+
+### Error saat `docker compose up --build`
+1. Pastikan Anda berada di dalam folder `unified-system-v2/`.
+2. Pastikan `docker-compose.yml` ada (`ls -la`).
+3. Pastikan kode terbaru sudah di-`git pull`.
+
+### Tidak bisa akses dari browser
+1. Cek apakah service berjalan: `docker compose ps`
+2. Pastikan *Firewall* di Hostinger Dashboard membuka port 4001–4005.
+
+---
+
+*Dokumen ini dibuat secara otomatis berdasarkan proses deployment aktual sistem Unified-System V2. Terakhir diperbarui: 29 Juni 2026.*
