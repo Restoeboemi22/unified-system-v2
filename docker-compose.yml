@@ -1,0 +1,73 @@
+version: '3.8'
+
+# ==========================================
+# KONFIGURASI DOCKER COMPOSE UNTUK VPS (V2)
+# ==========================================
+
+services:
+  session-service:
+    build:
+      context: .
+      args:
+        SERVICE_PATH: services/session-service
+    container_name: session-service
+    ports:
+      - "4001:3000"
+    volumes:
+      - session-data:/app/services/session-service/.data
+    restart: unless-stopped
+
+  policy-service:
+    build:
+      context: .
+      args:
+        SERVICE_PATH: services/policy-service
+    container_name: policy-service
+    ports:
+      - "4002:3000"
+    volumes:
+      - policy-data:/app/services/policy-service/.data
+    restart: unless-stopped
+
+  tenant-school-service:
+    build:
+      context: .
+      args:
+        SERVICE_PATH: services/tenant-school-service
+    container_name: tenant-school-service
+    ports:
+      - "4003:3000"
+    volumes:
+      - tenant-data:/app/services/tenant-school-service/.data
+    restart: unless-stopped
+
+  academic-directory-service:
+    build:
+      context: .
+      args:
+        SERVICE_PATH: services/academic-directory-service
+    container_name: academic-directory-service
+    ports:
+      - "4004:3000"
+    volumes:
+      - academic-data:/app/services/academic-directory-service/.data
+    restart: unless-stopped
+
+  attendance-service:
+    build:
+      context: .
+      args:
+        SERVICE_PATH: services/attendance-service
+    container_name: attendance-service
+    ports:
+      - "4005:3000"
+    volumes:
+      - attendance-data:/app/services/attendance-service/.data
+    restart: unless-stopped
+
+volumes:
+  session-data:
+  policy-data:
+  tenant-data:
+  academic-data:
+  attendance-data:
