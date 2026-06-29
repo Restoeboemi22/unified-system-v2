@@ -1,31 +1,45 @@
 # 🚀 Panduan Deployment Unified-System V2
 
-Dokumen ini adalah panduan teknis lengkap dan terkini untuk melakukan *deployment* sistem V2 ke VPS Hostinger menggunakan Docker.
+Dokumen ini adalah panduan teknis lengkap dan terkini untuk melakukan *deployment* sistem V2 ke VPS Hostinger menggunakan Docker, beserta deployment frontend ke Firebase Hosting.
+
+> **Status Terakhir:** ✅ BERHASIL DEPLOY — 29 Juni 2026, 10:39 WIB
 
 ---
 
-## 🏗️ Arsitektur Deployment
+## 🏗️ Arsitektur Deployment (Aktif)
 
-| Komponen | Teknologi | Keterangan |
+| Komponen | Teknologi | Alamat Produksi |
 |---|---|---|
-| **Backend (5 Services)** | NestJS + Docker | Di-*deploy* di VPS Hostinger |
-| **Database** | SQLite (per-service) | Tersimpan di dalam Docker Volume |
-| **Frontend** | React (Vite) | Di-*deploy* di Firebase Hosting |
+| **Frontend Web Admin** | React + Vite → Firebase Hosting | https://v2-portalkita-smpn3.web.app |
+| **Session Service** | NestJS + Docker | http://76.13.176.231:4001 |
+| **Policy Service** | NestJS + Docker | http://76.13.176.231:4002 |
+| **Tenant School Service** | NestJS + Docker | http://76.13.176.231:4003 |
+| **Academic Directory Service** | NestJS + Docker | http://76.13.176.231:4004 |
+| **Attendance Service** | NestJS + Docker | http://76.13.176.231:4005 |
+| **Database** | SQLite per-service | Docker Volume di VPS |
 
-### Port Masing-masing Service
-| Service | Port |
+### Info Server VPS
+| Item | Detail |
 |---|---|
-| `session-service` | `4001` |
-| `policy-service` | `4002` |
-| `tenant-school-service` | `4003` |
-| `academic-directory-service` | `4004` |
-| `attendance-service` | `4005` |
+| **Provider** | Hostinger |
+| **Paket** | KVM 1 |
+| **OS** | Ubuntu 24.04 LTS |
+| **IP Address** | `76.13.176.231` |
+| **SSH Command** | `ssh root@76.13.176.231` |
 
-**IP Server VPS:** `76.13.176.231`
+### Info Firebase Hosting
+| Item | Detail |
+|---|---|
+| **Project ID** | `v2-portalkita-smpn3` |
+| **URL Live** | https://v2-portalkita-smpn3.web.app |
+| **Project Console** | https://console.firebase.google.com/project/v2-portalkita-smpn3/overview |
 
 ---
 
-## ⚙️ BAGIAN 1: DEPLOY PERTAMA KALI
+## ⚙️ BAGIAN 1: DEPLOY PERTAMA KALI (SUDAH SELESAI)
+
+> ✅ Bagian ini sudah berhasil dieksekusi pada 29 Juni 2026.
+> Simpan sebagai referensi jika suatu saat perlu setup server baru dari awal.
 
 ### Langkah 1: Beli & Setup VPS di Hostinger
 1. Beli paket VPS di [Hostinger.com](https://hostinger.com) (minimal KVM 1).
@@ -34,45 +48,33 @@ Dokumen ini adalah panduan teknis lengkap dan terkini untuk melakukan *deploymen
 4. Buat *Root password* yang kuat dan simpan di tempat aman.
 5. Setelah server aktif, catat **IP Address**-nya.
 
----
+### Langkah 2: Masuk ke Server via SSH
 
-### Langkah 2: Masuk ke Server (SSH)
-
-Buka **CMD / Terminal** di laptop Anda, lalu jalankan:
 ```bash
 ssh root@76.13.176.231
 ```
-Ketik *password* Root Anda saat diminta *(layar tidak akan menampilkan karakter, itu normal)*.
+Ketik *password* Root saat diminta *(layar tidak menampilkan karakter — itu normal)*.
 
----
+> ⚠️ **PENTING:** Gunakan **CMD/Terminal Windows** untuk SSH. Jangan gunakan
+> Terminal bawaan browser Hostinger karena sering merusak teks *copy-paste*.
 
 ### Langkah 3: Unduh Kode dari GitHub
 
-> ⚠️ **PENTING:** Repositori GitHub harus berstatus **Public** sementara selama proses ini. Ubah kembali menjadi **Private** setelah selesai.
-
-Jalankan perintah berikut **satu per satu** di dalam server:
+> Repositori harus berstatus **Public** sementara. Kembalikan ke **Private** setelah selesai.
 
 ```bash
 apt-get install git -y
-```
-```bash
 git clone https://github.com/Restoeboemi22/unified-system-v2.git
-```
-```bash
 cd unified-system-v2
 ```
 
----
-
-### Langkah 4: Nyalakan Semua Service (Build & Deploy)
-
-Ini adalah perintah terpenting. Proses ini memakan waktu **3–5 menit** karena Docker mengunduh dan mengompilasi semua dependensi.
+### Langkah 4: Nyalakan Semua Service
 
 ```bash
 docker compose up -d --build
 ```
 
-Jika sukses, Anda akan melihat output seperti:
+Proses ini memakan waktu **3–5 menit**. Jika berhasil, akan muncul:
 ```
 ✔ Container session-service              Started
 ✔ Container policy-service               Started
@@ -83,43 +85,74 @@ Jika sukses, Anda akan melihat output seperti:
 
 ---
 
-## 🔄 BAGIAN 2: UPDATE KODE (Setelah Ada Perubahan)
+## 🔄 BAGIAN 2: UPDATE KODE (Prosedur Rutin)
 
-Setiap kali ada perubahan kode yang sudah di-*push* ke GitHub, lakukan langkah berikut di server:
+Setiap kali ada perubahan kode yang sudah di-*push* ke GitHub:
 
 ```bash
-# 1. Masuk ke server (jika belum)
+# 1. Masuk ke server
 ssh root@76.13.176.231
 
 # 2. Masuk ke folder proyek
 cd unified-system-v2
 
-# 3. Ambil perubahan terbaru dari GitHub
-#    (pastikan repositori Public sementara)
+# 3. Buka repo ke Public sementara di GitHub, lalu:
 git pull
 
-# 4. Rakit ulang dan restart semua service
+# 4. Kembalikan repo ke Private di GitHub
+
+# 5. Rakit ulang dan restart semua service
 docker compose up -d --build
 ```
 
 ---
 
-## 🛠️ BAGIAN 3: PERINTAH OPERASIONAL SEHARI-HARI
+## 🌐 BAGIAN 3: DEPLOY FRONTEND (Prosedur Rutin)
 
-Setelah masuk ke server via SSH dan berada di dalam folder `unified-system-v2/`:
+Setiap kali ada perubahan pada kode frontend (`apps/web-admin/`):
+
+### Langkah 1: Build Frontend
+Jalankan di terminal **laptop** Anda (bukan di server VPS):
+```bash
+pnpm --filter web-admin run build
+```
+
+### Langkah 2: Deploy ke Firebase
+```bash
+firebase deploy --only hosting --project v2-portalkita-smpn3
+```
+
+Setelah selesai, perubahan akan langsung terlihat di **https://v2-portalkita-smpn3.web.app**.
+
+### File Konfigurasi Lingkungan
+| File | Digunakan Untuk | Isi |
+|---|---|---|
+| `apps/web-admin/.env` | Development lokal | URL `localhost:400x` |
+| `apps/web-admin/.env.production` | Build produksi | URL `76.13.176.231:400x` |
+
+> Vite otomatis menggunakan `.env.production` saat menjalankan `vite build`.
+
+---
+
+## 🛠️ BAGIAN 4: PERINTAH OPERASIONAL SEHARI-HARI
+
+Setelah SSH masuk ke server (`ssh root@76.13.176.231`) dan `cd unified-system-v2`:
 
 ```bash
-# Cek status semua service (Running/Stopped)
+# Cek status semua service (Running/Stopped/Error)
 docker compose ps
 
-# Lihat log/catatan error sebuah service secara langsung
+# Lihat log real-time sebuah service
 docker compose logs -f session-service
 docker compose logs -f policy-service
+docker compose logs -f tenant-school-service
+docker compose logs -f academic-directory-service
+docker compose logs -f attendance-service
 
 # Restart sebuah service tanpa rebuild
 docker compose restart session-service
 
-# Matikan semua service
+# Matikan semua service (data TIDAK hilang)
 docker compose down
 
 # Nyalakan ulang semua service (tanpa rebuild)
@@ -128,63 +161,79 @@ docker compose up -d
 
 ---
 
-## 🌐 BAGIAN 4: DEPLOY FRONTEND (Firebase Hosting)
+## 📁 BAGIAN 5: STRUKTUR FILE PENTING
 
-### Langkah 1: Buat File Konfigurasi Produksi
-Buat file `.env.production` di dalam folder `apps/web-admin/`:
-```env
-VITE_SESSION_SERVICE_URL=http://76.13.176.231:4001
-VITE_POLICY_SERVICE_URL=http://76.13.176.231:4002
-VITE_TENANT_SCHOOL_SERVICE_URL=http://76.13.176.231:4003
-VITE_ACADEMIC_DIRECTORY_SERVICE_URL=http://76.13.176.231:4004
-VITE_ATTENDANCE_SERVICE_URL=http://76.13.176.231:4005
+```
+Unified-System-V2/
+├── Dockerfile                    ← Template build Docker untuk semua service
+├── docker-compose.yml            ← Orkestrator 5 service di VPS
+├── apps/
+│   └── web-admin/
+│       ├── .env                  ← Konfigurasi development lokal
+│       └── .env.production       ← Konfigurasi produksi (VPS)
+└── firebase.json                 ← Konfigurasi Firebase Hosting
 ```
 
-### Langkah 2: Build Frontend
-Jalankan di terminal laptop Anda (bukan di server VPS):
-```bash
-pnpm --filter web-admin run build
-```
+### Catatan Dockerfile Penting
+`Dockerfile` di *root* menggunakan pola **multi-stage build**:
+1. **Builder Stage**: Instal semua dependensi → Build packages → Build service → Generate Prisma Client
+2. **Runner Stage**: Hanya berisi *output* produksi yang ringan
 
-### Langkah 3: Deploy ke Firebase
-```bash
-firebase deploy --only hosting
-```
+Variabel `ARG SERVICE_PATH` di `docker-compose.yml` menentukan *service* mana yang dibangun (misal: `services/session-service`).
 
 ---
 
-## 🔒 BAGIAN 5: KEAMANAN & TIPS PENTING
+## 🔒 BAGIAN 6: KEAMANAN & TIPS PENTING
 
 | ✅ Yang Harus Dilakukan | ❌ Yang Harus Dihindari |
 |---|---|
-| Simpan Root Password di tempat aman | Jangan bagikan Root Password |
-| Kembalikan GitHub ke Private setelah `git pull` | Jangan biarkan repo Public lebih dari 5 menit |
-| Cek log jika ada service yang Error | Jangan jalankan `docker compose down -v` (data hilang!) |
-| Backup data secara berkala via Hostinger Dashboard | |
+| Simpan Root Password di tempat aman | Jangan bagikan Root Password ke siapa pun |
+| Kembalikan GitHub ke **Private** setelah `git pull` | Jangan biarkan repo Public lebih dari 5 menit |
+| Gunakan CMD/Terminal Windows untuk SSH | Jangan gunakan Terminal bawaan browser Hostinger |
+| Cek log jika ada service yang Error | **JANGAN** jalankan `docker compose down -v` (data hilang!) |
 
 ### ⚠️ Peringatan Volume Data
-Perintah `docker compose down` aman digunakan — data database **TIDAK** akan terhapus.
-Namun **JANGAN** jalankan `docker compose down -v` karena `-v` akan **menghapus semua data database** secara permanen.
+- `docker compose down` → **AMAN**, data database tetap ada
+- `docker compose down -v` → **BERBAHAYA**, semua data database **terhapus permanen**
 
 ---
 
-## 🔧 BAGIAN 6: TROUBLESHOOTING (Pemecahan Masalah)
+## 🔧 BAGIAN 7: TROUBLESHOOTING
+
+### Build gagal: `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL`
+**Penyebab:** `tsconfig.base.json` tidak tersalin ke Docker image, atau urutan build salah.
+**Solusi:** Pastikan `Dockerfile` sudah versi terbaru dengan perintah:
+```bash
+git pull  # di dalam server (pastikan repo Public dulu)
+docker compose up -d --build
+```
+
+### Build gagal: `npx prisma generate` error
+**Penyebab:** Prisma CLI tidak tersedia di *production stage*.
+**Solusi:** Sudah diperbaiki di `Dockerfile` terbaru — Prisma di-*generate* di *builder stage*.
 
 ### Service tidak mau start / terus Restart
 ```bash
-# Lihat pesan error spesifiknya
 docker compose logs nama-service
 ```
 
-### Error saat `docker compose up --build`
-1. Pastikan Anda berada di dalam folder `unified-system-v2/`.
-2. Pastikan `docker-compose.yml` ada (`ls -la`).
-3. Pastikan kode terbaru sudah di-`git pull`.
-
 ### Tidak bisa akses dari browser
 1. Cek apakah service berjalan: `docker compose ps`
-2. Pastikan *Firewall* di Hostinger Dashboard membuka port 4001–4005.
+2. Buka port di **Firewall Hostinger**: Dashboard → Security → Firewall → Buka port 4001–4005
+
+### `git pull` meminta username/password
+**Penyebab:** Repositori GitHub masih **Private**.
+**Solusi:** Ubah ke **Public** sementara di GitHub (Settings → Danger Zone → Change visibility), lalu ulangi `git pull`.
 
 ---
 
-*Dokumen ini dibuat secara otomatis berdasarkan proses deployment aktual sistem Unified-System V2. Terakhir diperbarui: 29 Juni 2026.*
+## 📋 LOG RIWAYAT DEPLOYMENT
+
+| Tanggal | Versi | Catatan |
+|---|---|---|
+| 29 Juni 2026 | V2.0 - Initial | Deploy pertama berhasil. Backend 5 service aktif di VPS Hostinger. Frontend live di Firebase. |
+
+---
+
+*Dokumen ini dibuat dan diperbarui berdasarkan proses deployment aktual sistem Unified-System V2.*
+*Terakhir diperbarui: 29 Juni 2026, 10:41 WIB*
