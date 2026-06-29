@@ -14,9 +14,12 @@ COPY services ./services
 # Install all dependencies (development included) for building
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
-# Build the specified service and its dependencies
+# Step 1: Build all shared packages first (they are depended upon by services)
+RUN pnpm --filter "./packages/**" build
+
+# Step 2: Build the specific service
 ARG SERVICE_PATH
-RUN pnpm --filter ./${SERVICE_PATH}... build
+RUN pnpm --filter ./${SERVICE_PATH} build
 
 # Isolate the built package and its production dependencies using deploy
 RUN pnpm --filter ./${SERVICE_PATH} deploy --prod /app/pruned
