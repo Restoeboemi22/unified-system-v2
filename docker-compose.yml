@@ -16,7 +16,7 @@ services:
     environment:
       - DATABASE_URL=file:../.data/session.db
     volumes:
-      - session-data:/app/services/session-service/.data
+      - session-data:/app/.data
     restart: unless-stopped
 
   policy-service:
@@ -30,7 +30,7 @@ services:
     environment:
       - DATABASE_URL=file:../.data/policy.db
     volumes:
-      - policy-data:/app/services/policy-service/.data
+      - policy-data:/app/.data
     restart: unless-stopped
 
   tenant-school-service:
@@ -44,7 +44,7 @@ services:
     environment:
       - DATABASE_URL=file:../.data/tenant.db
     volumes:
-      - tenant-data:/app/services/tenant-school-service/.data
+      - tenant-data:/app/.data
     restart: unless-stopped
 
   academic-directory-service:
@@ -58,7 +58,7 @@ services:
     environment:
       - DATABASE_URL=file:../.data/academic.db
     volumes:
-      - academic-data:/app/services/academic-directory-service/.data
+      - academic-data:/app/.data
     restart: unless-stopped
 
   attendance-service:
@@ -72,7 +72,7 @@ services:
     environment:
       - DATABASE_URL=file:../.data/attendance.db
     volumes:
-      - attendance-data:/app/services/attendance-service/.data
+      - attendance-data:/app/.data
     restart: unless-stopped
 
 volumes:
