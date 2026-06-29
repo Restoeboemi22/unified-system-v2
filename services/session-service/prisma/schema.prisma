@@ -1,0 +1,17 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  sessionId          String   @id
+  userId             String
+  identityId         String
+  activeMembershipId String?
+  expiresAt          DateTime
+}

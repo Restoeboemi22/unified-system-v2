@@ -1,0 +1,74 @@
+{
+  "sessions": [
+    {
+      "sessionId": "sess_f582cd2b-1432-47db-85e3-9ab20c12aff4",
+      "userId": "usr_student_demo",
+      "identityId": "idn_student_demo",
+      "activeMembershipId": "mem_student_demo",
+      "expiresAt": "2026-06-25T06:34:04.725Z"
+    },
+    {
+      "sessionId": "sess_9f955216-6f18-43c8-ab0e-500ea808786e",
+      "userId": "usr_admin_demo",
+      "identityId": "idn_admin_demo",
+      "activeMembershipId": "mem_admin_demo",
+      "expiresAt": "2026-06-25T06:34:04.986Z"
+    },
+    {
+      "sessionId": "sess_875a79b1-223c-45ca-9751-c50555406609",
+      "userId": "usr_student_demo",
+      "identityId": "idn_student_demo",
+      "activeMembershipId": "mem_student_demo",
+      "expiresAt": "2026-06-25T06:41:01.218Z"
+    },
+    {
+      "sessionId": "sess_7e86fa22-8299-4057-8025-a92227636dab",
+      "userId": "usr_student_demo",
+      "identityId": "idn_student_demo",
+      "activeMembershipId": "mem_student_demo",
+      "expiresAt": "2026-06-25T06:47:20.705Z"
+    },
+    {
+      "sessionId": "sess_cecf0bb3-3597-43fa-b0b0-186bb27dc0b2",
+      "userId": "usr_admin_demo",
+      "identityId": "idn_admin_demo",
+      "activeMembershipId": "mem_admin_demo",
+      "expiresAt": "2026-06-25T06:47:20.768Z"
+    },
+    {
+      "sessionId": "sess_aa82c17b-4987-4bd7-875d-71be64d7a554",
+      "userId": "usr_student_demo",
+      "identityId": "idn_student_demo",
+      "activeMembershipId": "mem_student_demo",
+      "expiresAt": "2026-06-25T06:52:29.946Z"
+    },
+    {
+      "sessionId": "sess_9e672472-60b4-4da5-8722-57e3236d2fc4",
+      "userId": "usr_admin_demo",
+      "identityId": "idn_admin_demo",
+      "activeMembershipId": "mem_admin_demo",
+      "expiresAt": "2026-06-25T06:52:30.233Z"
+    },
+    {
+      "sessionId": "sess_493c6453-a243-4c75-ba1f-f6cc21fdc388",
+      "userId": "usr_student_demo",
+      "identityId": "idn_student_demo",
+      "activeMembershipId": "mem_student_demo",
+      "expiresAt": "2026-06-25T07:08:16.240Z"
+    },
+    {
+      "sessionId": "sess_3fc7c0eb-1aed-43c5-bea9-42b2d9928b10",
+      "userId": "usr_admin_demo",
+      "identityId": "idn_admin_demo",
+      "activeMembershipId": "mem_admin_demo",
+      "expiresAt": "2026-06-25T07:08:16.544Z"
+    },
+    {
+      "sessionId": "sess_54ecda58-5717-4c7c-ba72-d8655f24523d",
+      "userId": "usr_admin_demo",
+      "identityId": "idn_admin_demo",
+      "activeMembershipId": "mem_admin_demo",
+      "expiresAt": "2026-06-25T07:10:46.170Z"
+    }
+  ]
+}

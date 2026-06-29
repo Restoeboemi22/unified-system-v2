@@ -1,0 +1,22 @@
+{
+  "students": [
+    {
+      "studentId": "std_001",
+      "schoolId": "school_001",
+      "studentNumber": "S-001",
+      "fullName": "Demo Student",
+      "status": "active",
+      "createdAt": "2026-06-25T05:08:16.741Z",
+      "updatedAt": "2026-06-25T05:08:16.741Z"
+    },
+    {
+      "studentId": "std_8d682ceb-fc3e-4d35-8fcb-3d60a5dc6d34",
+      "schoolId": "school_001",
+      "studentNumber": "S-4102",
+      "fullName": "Persisted Student",
+      "status": "active",
+      "createdAt": "2026-06-25T05:08:16.745Z",
+      "updatedAt": "2026-06-25T05:08:16.745Z"
+    }
+  ]
+}

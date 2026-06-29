@@ -1,0 +1,50 @@
+{
+  "schools": [
+    {
+      "schoolId": "school_001",
+      "name": "Demo School",
+      "status": "active"
+    }
+  ],
+  "serviceStatuses": [
+    {
+      "schoolId": "school_001",
+      "serviceStatus": "limited",
+      "reasonCode": "MANUAL_LIMIT",
+      "reasonText": "limited for persistence test",
+      "updatedAt": "2026-06-25T05:08:16.690Z"
+    }
+  ],
+  "memberships": [
+    {
+      "membershipId": "mem_student_demo",
+      "userId": "usr_student_demo",
+      "identityId": "idn_student_demo",
+      "schoolId": "school_001",
+      "role": "student",
+      "status": "active"
+    },
+    {
+      "membershipId": "mem_admin_demo",
+      "userId": "usr_admin_demo",
+      "identityId": "idn_admin_demo",
+      "schoolId": "school_001",
+      "role": "admin",
+      "status": "active"
+    }
+  ],
+  "identityAccounts": [
+    {
+      "provider": "firebase",
+      "idToken": "TOKEN_DARI_PROVIDER",
+      "userId": "usr_student_demo",
+      "identityId": "idn_student_demo"
+    },
+    {
+      "provider": "firebase",
+      "idToken": "ADMIN_TOKEN",
+      "userId": "usr_admin_demo",
+      "identityId": "idn_admin_demo"
+    }
+  ]
+}

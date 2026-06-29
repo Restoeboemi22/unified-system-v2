@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  studentId     String   @id
+  schoolId      String
+  studentNumber String
+  fullName      String
+  status        String
+  createdAt     DateTime
+  updatedAt     DateTime
+
+  @@unique([schoolId, studentNumber])
+}
+
+model Teacher {
+  teacherId       String   @id
+  schoolId        String
+  employeeNumber  String
+  fullName        String
+  subjectLabels   String
+  status          String
+  createdAt       DateTime
+  updatedAt       DateTime
+
+  @@unique([schoolId, employeeNumber])
+}
+
+model Staff {
+  staffId         String   @id
+  schoolId        String
+  employeeNumber  String
+  fullName        String
+  positionTitle   String
+  status          String
+  createdAt       DateTime
+  updatedAt       DateTime
+
+  @@unique([schoolId, employeeNumber])
+}
+
+model Principal {
+  principalId      String   @id
+  schoolId         String
+  appointmentCode  String?
+  fullName         String
+  status           String
+  createdAt        DateTime
+  updatedAt        DateTime
+}
+
+model Classroom {
+  classroomId        String   @id
+  schoolId           String
+  academicPeriodId   String
+  gradeLevel         String
+  classroomName      String
+  homeroomTeacherId  String?
+  status             String
+  createdAt          DateTime
+  updatedAt          DateTime
+
+  @@unique([schoolId, academicPeriodId, classroomName])
+}
+
+model AcademicPeriod {
+  academicPeriodId  String   @id
+  schoolId          String
+  yearLabel         String
+  semesterLabel     String
+  startDate         DateTime
+  endDate           DateTime
+  status            String
+  createdAt         DateTime
+  updatedAt         DateTime
+
+  @@unique([schoolId, yearLabel, semesterLabel])
+}

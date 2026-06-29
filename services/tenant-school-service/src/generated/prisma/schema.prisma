@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model School {
+  schoolId      String         @id
+  name          String
+  status        String
+  ServiceStatus ServiceStatus?
+  Memberships   Membership[]
+  AuditLogs     AuditLog[]
+}
+
+model ServiceStatus {
+  schoolId      String   @id
+  serviceStatus String
+  reasonCode    String?
+  reasonText    String?
+  updatedAt     DateTime
+  School        School   @relation(fields: [schoolId], references: [schoolId])
+}
+
+model Membership {
+  membershipId String @id
+  userId       String
+  identityId   String
+  schoolId     String
+  role         String
+  status       String
+  School       School @relation(fields: [schoolId], references: [schoolId])
+}
+
+model AuditLog {
+  auditLogId  String   @id
+  schoolId    String
+  actorUserId String
+  action      String
+  targetType  String
+  targetId    String
+  payload     String
+  createdAt   DateTime
+  School      School   @relation(fields: [schoolId], references: [schoolId])
+}
+
+model IdentityAccount {
+  identityId String @id
+  provider   String
+  idToken    String
+  userId     String
+
+  @@unique([provider, idToken])
+}

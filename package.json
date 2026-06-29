@@ -1,0 +1,20 @@
+{
+  "name": "unified-system-v2",
+  "private": true,
+  "packageManager": "pnpm@8.15.9",
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "dev:web-admin": "pnpm --filter web-admin dev",
+    "dev:session-service": "pnpm --filter @unified/services-session dev",
+    "dev:policy-service": "pnpm --filter @unified/services-policy dev",
+    "dev:tenant-school-service": "pnpm --filter @unified/services-tenant-school dev",
+    "dev:academic-directory-service": "pnpm --filter @unified/services-academic-directory dev",
+    "dev:attendance-service": "pnpm --filter @unified/services-attendance dev",
+    "dev:all": "concurrently \"pnpm run dev:session-service\" \"pnpm run dev:policy-service\" \"pnpm run dev:tenant-school-service\" \"pnpm run dev:academic-directory-service\" \"pnpm run dev:attendance-service\" \"pnpm run dev:web-admin\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "typescript": "^5.6.3"
+  }
+}

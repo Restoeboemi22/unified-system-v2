@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../../.data/tenant.db"
+}
+
+model AttendanceRecord {
+  attendanceId   String   @id
+  studentId      String
+  schoolId       String
+  date           String   // Format YYYY-MM-DD
+  status         String
+  latitude       Float?
+  longitude      Float?
+  distanceMeters Float?
+  submittedAt    DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([studentId, date])
+}
