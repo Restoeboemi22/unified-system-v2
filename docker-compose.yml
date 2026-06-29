@@ -13,6 +13,8 @@ services:
     container_name: session-service
     ports:
       - "4001:3000"
+    environment:
+      - DATABASE_URL=file:../.data/session.db
     volumes:
       - session-data:/app/services/session-service/.data
     restart: unless-stopped
@@ -25,6 +27,8 @@ services:
     container_name: policy-service
     ports:
       - "4002:3000"
+    environment:
+      - DATABASE_URL=file:../.data/policy.db
     volumes:
       - policy-data:/app/services/policy-service/.data
     restart: unless-stopped
@@ -37,6 +41,8 @@ services:
     container_name: tenant-school-service
     ports:
       - "4003:3000"
+    environment:
+      - DATABASE_URL=file:../.data/tenant.db
     volumes:
       - tenant-data:/app/services/tenant-school-service/.data
     restart: unless-stopped
@@ -49,6 +55,8 @@ services:
     container_name: academic-directory-service
     ports:
       - "4004:3000"
+    environment:
+      - DATABASE_URL=file:../.data/academic.db
     volumes:
       - academic-data:/app/services/academic-directory-service/.data
     restart: unless-stopped
@@ -61,6 +69,8 @@ services:
     container_name: attendance-service
     ports:
       - "4005:3000"
+    environment:
+      - DATABASE_URL=file:../.data/attendance.db
     volumes:
       - attendance-data:/app/services/attendance-service/.data
     restart: unless-stopped
