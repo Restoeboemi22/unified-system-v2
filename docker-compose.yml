@@ -75,6 +75,15 @@ services:
       - attendance-data:/app/.data
     restart: unless-stopped
 
+  web-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: web-admin
+    ports:
+      - "80:80"
+    restart: unless-stopped
+
 volumes:
   session-data:
   policy-data:
