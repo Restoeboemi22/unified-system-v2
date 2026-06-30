@@ -24,17 +24,28 @@ export function getFirebaseAdmin(): App {
   // Cek apakah ada environment variable untuk service account
   const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
   const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
   
   if (serviceAccountPath) {
     firebaseAdminApp = initializeApp({
       credential: cert(serviceAccountPath),
       projectId,
     });
+  } else if (projectId && clientEmail && privateKey) {
+    firebaseAdminApp = initializeApp({
+      credential: cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
+      projectId,
+    });
   } else {
     // Fallback: Jika tidak ada service account, kita inisialisasi default app
     // yang hanya bisa digunakan untuk verifikasi token sederhana jika env variables GOOGLE_APPLICATION_CREDENTIALS diset.
     try {
-      firebaseAdminApp = initializeApp();
+      firebaseAdminApp = initializeApp(projectId ? { projectId } : undefined);
     } catch (e) {
       console.warn("Peringatan: Gagal menginisialisasi Firebase Admin. Pastikan kredensial tersedia.");
       // Dummy app untuk mencegah crash saat development tanpa kredensial

@@ -74,7 +74,6 @@ export default function LoginPage() {
       const idToken = await userCredential.user.getIdToken();
       loginMutation.mutate({ provider: "firebase", idToken });
     } catch (error: any) {
-      console.error("Firebase Login Error", error);
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         setFirebaseError("Email atau Password salah.");
       } else {

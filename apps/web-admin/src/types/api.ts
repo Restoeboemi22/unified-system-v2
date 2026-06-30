@@ -88,6 +88,11 @@ export type ApiErrorPayload = {
   code?: string;
   message?: string;
   details?: unknown;
+  error?: {
+    code?: string;
+    message?: string;
+    details?: unknown;
+  };
 };
 
 export type Teacher = {

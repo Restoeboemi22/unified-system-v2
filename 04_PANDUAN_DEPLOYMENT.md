@@ -10,7 +10,7 @@ Dokumen ini adalah panduan teknis lengkap dan terkini untuk melakukan *deploymen
 
 | Komponen | Teknologi | Alamat Produksi |
 |---|---|---|
-| **Frontend Web Admin** | React + Vite → Firebase Hosting | https://v2-portalkita-smpn3.web.app |
+| **Frontend Web Admin** | React + Vite + Nginx (Docker) | http://76.13.176.231 |
 | **Session Service** | NestJS + Docker | http://76.13.176.231:4001 |
 | **Policy Service** | NestJS + Docker | http://76.13.176.231:4002 |
 | **Tenant School Service** | NestJS + Docker | http://76.13.176.231:4003 |
@@ -31,7 +31,8 @@ Dokumen ini adalah panduan teknis lengkap dan terkini untuk melakukan *deploymen
 | Item | Detail |
 |---|---|
 | **Project ID** | `v2-portalkita-smpn3` |
-| **URL Live** | https://v2-portalkita-smpn3.web.app |
+| **URL Live (legacy redirect)** | https://v2-portalkita-smpn3.web.app |
+| **URL Live Aktif** | http://76.13.176.231 |
 | **Project Console** | https://console.firebase.google.com/project/v2-portalkita-smpn3/overview |
 
 ---
@@ -99,9 +100,14 @@ cd unified-system-v2
 # 3. Buka repo ke Public sementara di GitHub, lalu:
 git pull
 
-# 4. Kembalikan repo ke Private di GitHub
+# 4. Pastikan file .env untuk Docker Compose sudah ada
+#    (cukup sekali saat setup awal, lalu update hanya jika ada perubahan kredensial)
+#    cp .env.vps.example .env
+#    nano .env
 
-# 5. Rakit ulang dan restart semua service
+# 5. Kembalikan repo ke Private di GitHub
+
+# 6. Rakit ulang dan restart semua service
 docker compose up -d --build
 ```
 
@@ -111,26 +117,57 @@ docker compose up -d --build
 
 Setiap kali ada perubahan pada kode frontend (`apps/web-admin/`):
 
-### Langkah 1: Build Frontend
-Jalankan di terminal **laptop** Anda (bukan di server VPS):
+### Langkah 1: Deploy frontend ke VPS bersama reverse proxy
+Jalankan di server VPS setelah `git pull`:
 ```bash
-pnpm --filter web-admin run build
+docker compose up -d --build web-admin
 ```
 
-### Langkah 2: Deploy ke Firebase
+Setelah selesai, frontend aktif di **http://76.13.176.231** dan route `/api/*` akan diproxy oleh `nginx` ke service internal Docker.
+
+### Langkah 2: Firebase hanya sebagai redirect legacy
+Jika masih ingin mempertahankan URL Firebase lama agar user tidak tersesat:
 ```bash
 firebase deploy --only hosting --project v2-portalkita-smpn3
 ```
 
-Setelah selesai, perubahan akan langsung terlihat di **https://v2-portalkita-smpn3.web.app**.
+Firebase tidak lagi menjadi host frontend utama. Firebase hanya mengarahkan trafik lama ke frontend VPS.
 
 ### File Konfigurasi Lingkungan
 | File | Digunakan Untuk | Isi |
 |---|---|---|
+| `.env` di root VPS | Docker Compose production | Kredensial Firebase Admin dan env backend untuk container |
+| `.env.vps.example` | Template VPS | Contoh isi `.env` untuk Docker Compose di server |
 | `apps/web-admin/.env` | Development lokal | URL `localhost:400x` |
-| `apps/web-admin/.env.production` | Build produksi | URL `76.13.176.231:400x` |
+| `apps/web-admin/.env.production` | Build produksi untuk `web-admin` Nginx | Relative path `/api/*` |
 
 > Vite otomatis menggunakan `.env.production` saat menjalankan `vite build`.
+> Relative path `/api/*` hanya berfungsi benar bila frontend disajikan oleh `web-admin` Nginx di VPS yang memiliki proxy internal ke service Docker.
+
+### Konfigurasi Firebase Admin di VPS
+Untuk login production yang lebih aman dan permanen, `tenant-school-service` sekarang membaca kredensial Firebase Admin dari env Docker Compose.
+
+1. Di VPS, salin template env:
+```bash
+cp .env.vps.example .env
+```
+2. Edit file `.env`:
+```bash
+nano .env
+```
+3. Isi minimal variabel berikut:
+```bash
+NODE_ENV=production
+FIREBASE_PROJECT_ID=smpn3pacet-app
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@smpn3pacet-app.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...isi private key lengkap...\n-----END PRIVATE KEY-----\n"
+```
+4. Rebuild service terkait:
+```bash
+docker compose up -d --build tenant-school-service session-service web-admin
+```
+
+> Jika Anda lebih nyaman memakai file JSON service account, gunakan `FIREBASE_SERVICE_ACCOUNT_PATH` dan `GOOGLE_APPLICATION_CREDENTIALS` di `.env`, lalu pastikan file JSON tersebut benar-benar ada di VPS.
 
 ---
 
@@ -220,6 +257,20 @@ docker compose logs nama-service
 ### Tidak bisa akses dari browser
 1. Cek apakah service berjalan: `docker compose ps`
 2. Buka port di **Firewall Hostinger**: Dashboard → Security → Firewall → Buka port 4001–4005
+
+### Login gagal karena Firebase Admin / Project ID
+**Gejala umum:** log `tenant-school-service` menampilkan `Unable to detect a Project Id in the current environment`.
+
+**Solusi:**
+1. Pastikan file `.env` di root proyek VPS sudah terisi `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, dan `FIREBASE_PRIVATE_KEY`.
+2. Rebuild service:
+```bash
+docker compose up -d --build tenant-school-service session-service web-admin
+```
+3. Verifikasi health:
+```bash
+wget -S -O- http://127.0.0.1/api/session/health || true
+```
 
 ### `git pull` meminta username/password
 **Penyebab:** Repositori GitHub masih **Private**.

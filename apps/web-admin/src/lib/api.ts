@@ -35,6 +35,11 @@ export class ApiError extends Error {
   }
 }
 
+function getApiErrorMessage(status: number, payload?: ApiErrorPayload): string {
+  const normalized = payload?.error ?? payload;
+  return normalized?.message ?? `HTTP ${status}`;
+}
+
 async function request<T>(
   url: string,
   init?: RequestInit & { json?: JsonBody; sessionId?: string }
@@ -55,7 +60,7 @@ async function request<T>(
     const payload = (await response.json().catch(() => undefined)) as ApiErrorPayload | undefined;
     throw new ApiError(
       response.status,
-      payload?.message ?? `HTTP ${response.status}`,
+      getApiErrorMessage(response.status, payload),
       payload
     );
   }

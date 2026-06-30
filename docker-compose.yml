@@ -47,6 +47,12 @@ services:
       - DATABASE_URL=file:../.data/tenant.db
       - SESSION_SERVICE_BASE_URL=http://session-service:3000
       - POLICY_SERVICE_BASE_URL=http://policy-service:3000
+      - NODE_ENV=${NODE_ENV:-development}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL:-}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY:-}
+      - FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
     volumes:
       - tenant-data:/app/.data
     restart: unless-stopped
