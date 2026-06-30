@@ -3,6 +3,19 @@ import { getAuth } from 'firebase-admin/auth';
 
 let firebaseAdminApp: App | undefined;
 
+function decodeJwtWithoutVerification(idToken: string): string {
+  const payloadBase64 = idToken.split('.')[1];
+  const payloadDecoded = Buffer.from(payloadBase64, 'base64').toString('utf8');
+  const payload = JSON.parse(payloadDecoded);
+  const identityId = payload.user_id || payload.sub;
+
+  if (!identityId) {
+    throw new Error("JWT token tidak mengandung user_id atau sub.");
+  }
+
+  return identityId;
+}
+
 export function getFirebaseAdmin(): App {
   if (firebaseAdminApp) {
     return firebaseAdminApp;
@@ -10,10 +23,12 @@ export function getFirebaseAdmin(): App {
 
   // Cek apakah ada environment variable untuk service account
   const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  const projectId = process.env.FIREBASE_PROJECT_ID;
   
   if (serviceAccountPath) {
     firebaseAdminApp = initializeApp({
       credential: cert(serviceAccountPath),
+      projectId,
     });
   } else {
     // Fallback: Jika tidak ada service account, kita inisialisasi default app
@@ -42,10 +57,7 @@ export async function verifyFirebaseToken(idToken: string): Promise<string> {
     if (process.env.NODE_ENV !== "production") {
       console.warn("Dev Mode: Mem-parsing JWT token tanpa verifikasi signature karena Firebase Admin SDK tidak punya kredensial.");
       try {
-        const payloadBase64 = idToken.split('.')[1];
-        const payloadDecoded = Buffer.from(payloadBase64, 'base64').toString('utf8');
-        const payload = JSON.parse(payloadDecoded);
-        return payload.user_id || payload.sub;
+        return decodeJwtWithoutVerification(idToken);
       } catch (e) {
         throw new Error("Gagal mem-parsing JWT token. Format tidak valid.");
       }
@@ -53,6 +65,18 @@ export async function verifyFirebaseToken(idToken: string): Promise<string> {
     throw new Error("Firebase Admin SDK tidak terkonfigurasi. Tidak dapat memverifikasi token nyata.");
   }
   
-  const decodedToken = await getAuth(app).verifyIdToken(idToken);
-  return decodedToken.uid;
+  try {
+    const decodedToken = await getAuth(app).verifyIdToken(idToken);
+    return decodedToken.uid;
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("Dev Mode: Firebase Admin gagal memverifikasi token, fallback ke parse JWT tanpa verifikasi signature.");
+      try {
+        return decodeJwtWithoutVerification(idToken);
+      } catch {
+        throw error;
+      }
+    }
+    throw error;
+  }
 }
