@@ -283,6 +283,9 @@ importers:
       '@unified/packages-shared-kernel':
         specifier: workspace:*
         version: link:../../packages/shared-kernel
+      prisma:
+        specifier: ^5.14.0
+        version: 5.22.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -299,9 +302,6 @@ importers:
       '@types/node':
         specifier: ^18.19.45
         version: 18.19.130
-      prisma:
-        specifier: ^5.14.0
-        version: 5.22.0
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@18.19.130)(typescript@5.9.3)
@@ -344,6 +344,9 @@ importers:
       '@unified/packages-tenant-school-contract':
         specifier: workspace:*
         version: link:../../packages/tenant-school-contract
+      prisma:
+        specifier: ^5.14.0
+        version: 5.22.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -360,9 +363,6 @@ importers:
       '@types/node':
         specifier: ^18.19.45
         version: 18.19.130
-      prisma:
-        specifier: ^5.14.0
-        version: 5.22.0
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@18.19.130)(typescript@5.8.3)
@@ -445,6 +445,9 @@ importers:
       '@unified/packages-tenant-school-contract':
         specifier: workspace:*
         version: link:../../packages/tenant-school-contract
+      prisma:
+        specifier: ^5.14.0
+        version: 5.22.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -461,9 +464,6 @@ importers:
       '@types/node':
         specifier: ^18.19.45
         version: 18.19.130
-      prisma:
-        specifier: ^5.14.0
-        version: 5.22.0
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -506,6 +506,9 @@ importers:
       firebase-admin:
         specifier: ^14.1.0
         version: 14.1.0
+      prisma:
+        specifier: ^5.14.0
+        version: 5.22.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -522,9 +525,6 @@ importers:
       '@types/node':
         specifier: ^18.19.45
         version: 18.19.130
-      prisma:
-        specifier: ^5.14.0
-        version: 5.22.0
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@18.19.130)(typescript@5.9.3)
@@ -2144,9 +2144,11 @@ packages:
 
   /@prisma/debug@5.22.0:
     resolution: {integrity: sha512-AUt44v3YJeggO2ZU5BkXI7M4hu9BF2zzH2iF2V5pyXT/lRTyWiElZ7It+bRH1EshoMRxHgpYg4VB6rCM+mG5jQ==}
+    dev: false
 
   /@prisma/engines-version@5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2:
     resolution: {integrity: sha512-2PTmxFR2yHW/eB3uqWtcgRcgAbG1rwG9ZriSvQw+nnb7c4uCr3RAcGMb6/zfE88SKlC1Nj2ziUvc96Z379mHgQ==}
+    dev: false
 
   /@prisma/engines@5.22.0:
     resolution: {integrity: sha512-UNjfslWhAt06kVL3CjkuYpHAWSO6L4kDCVPegV6itt7nD1kSJavd3vhgAEhjglLJJKEdJ7oIqDJ+yHk6qO8gPA==}
@@ -2156,6 +2158,7 @@ packages:
       '@prisma/engines-version': 5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2
       '@prisma/fetch-engine': 5.22.0
       '@prisma/get-platform': 5.22.0
+    dev: false
 
   /@prisma/fetch-engine@5.22.0:
     resolution: {integrity: sha512-bkrD/Mc2fSvkQBV5EpoFcZ87AvOgDxbG99488a5cexp5Ccny+UM6MAe/UFkUC0wLYD9+9befNOqGiIJhhq+HbA==}
@@ -2163,48 +2166,59 @@ packages:
       '@prisma/debug': 5.22.0
       '@prisma/engines-version': 5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2
       '@prisma/get-platform': 5.22.0
+    dev: false
 
   /@prisma/get-platform@5.22.0:
     resolution: {integrity: sha512-pHhpQdr1UPFpt+zFfnPazhulaZYCUqeIcPpJViYoq9R+D/yw4fjE+CtnsnKzPYm0ddUbeXUzjGVGIRVgPDCk4Q==}
     dependencies:
       '@prisma/debug': 5.22.0
+    dev: false
 
   /@protobufjs/aspromise@1.1.2:
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
+    requiresBuild: true
     dev: false
 
   /@protobufjs/base64@1.1.2:
     resolution: {integrity: sha512-AZkcAA5vnN/v4PDqKyMR5lx7hZttPDgClv83E//FMNhR2TMcLUhfRUBHCmSl0oi9zMgDDqRUJkSxO3wm85+XLg==}
+    requiresBuild: true
     dev: false
 
   /@protobufjs/codegen@2.0.5:
     resolution: {integrity: sha512-zgXFLzW3Ap33e6d0Wlj4MGIm6Ce8O89n/apUaGNB/jx+hw+ruWEp7EwGUshdLKVRCxZW12fp9r40E1mQrf/34g==}
+    requiresBuild: true
     dev: false
 
   /@protobufjs/eventemitter@1.1.1:
     resolution: {integrity: sha512-vW1GmwMZNnL+gMRaovlh9yZX74kc+TTU3FObkkurpMaRtBfLP3ldjS9KQWlwZgraRE0+dheEEoAxdzcJQ8eXZg==}
+    requiresBuild: true
     dev: false
 
   /@protobufjs/fetch@1.1.1:
     resolution: {integrity: sha512-GpptLrs57adMSuHi3VNj0mAF8dwh36LMaYF6XyJ6JMWlVsc+t42tm1HSEDmOs3A8fC9yyeisgLhsTVQokOZ0zw==}
+    requiresBuild: true
     dependencies:
       '@protobufjs/aspromise': 1.1.2
     dev: false
 
   /@protobufjs/float@1.0.2:
     resolution: {integrity: sha512-Ddb+kVXlXst9d+R9PfTIxh1EdNkgoRe5tOX6t01f1lYWOvJnSPDBlG241QLzcyPdoNTsblLUdujGSE4RzrTZGQ==}
+    requiresBuild: true
     dev: false
 
   /@protobufjs/path@1.1.2:
     resolution: {integrity: sha512-6JOcJ5Tm08dOHAbdR3GrvP+yUUfkjG5ePsHYczMFLq3ZmMkAD98cDgcT2iA1lJ9NVwFd4tH/iSSoe44YWkltEA==}
+    requiresBuild: true
     dev: false
 
   /@protobufjs/pool@1.1.0:
     resolution: {integrity: sha512-0kELaGSIDBKvcgS4zkjz1PeddatrjYcmMWOlAuAPwAeccUrPHdUqo/J6LiymHHEiJT5NrF1UVwxY14f+fy4WQw==}
+    requiresBuild: true
     dev: false
 
   /@protobufjs/utf8@1.1.1:
     resolution: {integrity: sha512-oOAWABowe8EAbMyWKM0tYDKi8Yaox52D+HWZhAIJqQXbqe0xI/GV7FhLWqlEKreMkfDjshR5FKgi3mnle0h6Eg==}
+    requiresBuild: true
     dev: false
 
   /@reduxjs/toolkit@2.12.0(react-redux@9.3.0)(react@18.3.1):
@@ -2935,7 +2949,7 @@ packages:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.21
-      vite: 5.4.21(@types/node@18.19.130)
+      vite: 5.4.21(@types/node@22.20.0)
     dev: true
 
   /@vitest/pretty-format@2.1.9:
@@ -5545,6 +5559,7 @@ packages:
       '@prisma/engines': 5.22.0
     optionalDependencies:
       fsevents: 2.3.3
+    dev: false
 
   /process-warning@5.0.0:
     resolution: {integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==}

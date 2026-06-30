@@ -32,7 +32,7 @@ async function bootstrap() {
     next();
   });
 
-  const port = Number(process.env.POLICY_SERVICE_PORT ?? "4002");
+  const port = Number(process.env.PORT ?? process.env.POLICY_SERVICE_PORT ?? "4002");
   await app.listen(port);
   logger.info("listening", { port });
 }

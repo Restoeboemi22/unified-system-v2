@@ -34,7 +34,7 @@ async function bootstrap() {
     next();
   });
 
-  const port = Number(process.env.SESSION_SERVICE_PORT ?? "4001");
+  const port = Number(process.env.PORT ?? process.env.SESSION_SERVICE_PORT ?? "4001");
   await app.listen(port);
   logger.info("listening", { port });
 }

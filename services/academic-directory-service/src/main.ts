@@ -23,7 +23,7 @@ async function bootstrap() {
     next();
   });
 
-  const port = Number(process.env.ACADEMIC_DIRECTORY_SERVICE_PORT ?? "4004");
+  const port = Number(process.env.PORT ?? process.env.ACADEMIC_DIRECTORY_SERVICE_PORT ?? "4004");
   await app.listen(port);
   logger.info("listening", { port });
 }

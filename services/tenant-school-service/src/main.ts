@@ -23,7 +23,7 @@ async function bootstrap() {
     next();
   });
 
-  const port = Number(process.env.TENANT_SCHOOL_SERVICE_PORT ?? "4003");
+  const port = Number(process.env.PORT ?? process.env.TENANT_SCHOOL_SERVICE_PORT ?? "4003");
   await app.listen(port);
   logger.info("listening", { port });
 }
