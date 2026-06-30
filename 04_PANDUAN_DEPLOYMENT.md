@@ -145,29 +145,44 @@ Firebase tidak lagi menjadi host frontend utama. Firebase hanya mengarahkan traf
 > Relative path `/api/*` hanya berfungsi benar bila frontend disajikan oleh `web-admin` Nginx di VPS yang memiliki proxy internal ke service Docker.
 
 ### Konfigurasi Firebase Admin di VPS
-Untuk login production yang lebih aman dan permanen, `tenant-school-service` sekarang membaca kredensial Firebase Admin dari env Docker Compose.
+Untuk login production yang benar-benar bersih, gunakan **service account JSON** dan mount ke container `tenant-school-service` secara read-only.
 
 1. Di VPS, salin template env:
 ```bash
 cp .env.vps.example .env
+mkdir -p secrets
 ```
-2. Edit file `.env`:
+2. Upload file JSON service account Firebase ke VPS dengan nama:
+```bash
+secrets/firebase-service-account.json
+```
+   Jika edit langsung di VPS, Anda bisa:
+```bash
+nano secrets/firebase-service-account.json
+```
+   lalu paste isi JSON utuh dari Firebase Console.
+3. Edit file `.env`:
 ```bash
 nano .env
 ```
-3. Isi minimal variabel berikut:
+4. Isi minimal variabel berikut:
 ```bash
 NODE_ENV=production
 FIREBASE_PROJECT_ID=smpn3pacet-app
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@smpn3pacet-app.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...isi private key lengkap...\n-----END PRIVATE KEY-----\n"
+FIREBASE_SERVICE_ACCOUNT_PATH=/app/secrets/firebase-service-account.json
+GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/firebase-service-account.json
 ```
-4. Rebuild service terkait:
+5. Rebuild service terkait:
 ```bash
 docker compose up -d --build tenant-school-service session-service web-admin
 ```
+6. Verifikasi:
+```bash
+docker compose logs tenant-school-service --tail=50
+wget -S -O- http://127.0.0.1/api/session/health || true
+```
 
-> Jika Anda lebih nyaman memakai file JSON service account, gunakan `FIREBASE_SERVICE_ACCOUNT_PATH` dan `GOOGLE_APPLICATION_CREDENTIALS` di `.env`, lalu pastikan file JSON tersebut benar-benar ada di VPS.
+> Opsi alternatif tetap tersedia: Anda bisa memakai `FIREBASE_CLIENT_EMAIL` dan `FIREBASE_PRIVATE_KEY` langsung di `.env`, tetapi untuk VPS production jalur file JSON lebih stabil dan lebih aman saat maintenance.
 
 ---
 

@@ -55,6 +55,7 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
     volumes:
       - tenant-data:/app/.data
+      - ./secrets:/app/secrets:ro
     restart: unless-stopped
 
   academic-directory-service:
