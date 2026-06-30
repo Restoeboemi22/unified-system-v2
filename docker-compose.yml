@@ -15,6 +15,7 @@ services:
       - "4001:3000"
     environment:
       - DATABASE_URL=file:../.data/session.db
+      - TENANT_SCHOOL_SERVICE_BASE_URL=http://tenant-school-service:3000
     volumes:
       - session-data:/app/.data
     restart: unless-stopped
@@ -29,6 +30,7 @@ services:
       - "4002:3000"
     environment:
       - DATABASE_URL=file:../.data/policy.db
+      - SESSION_SERVICE_BASE_URL=http://session-service:3000
     volumes:
       - policy-data:/app/.data
     restart: unless-stopped
@@ -43,6 +45,8 @@ services:
       - "4003:3000"
     environment:
       - DATABASE_URL=file:../.data/tenant.db
+      - SESSION_SERVICE_BASE_URL=http://session-service:3000
+      - POLICY_SERVICE_BASE_URL=http://policy-service:3000
     volumes:
       - tenant-data:/app/.data
     restart: unless-stopped
@@ -57,6 +61,8 @@ services:
       - "4004:3000"
     environment:
       - DATABASE_URL=file:../.data/academic.db
+      - SESSION_SERVICE_BASE_URL=http://session-service:3000
+      - POLICY_SERVICE_BASE_URL=http://policy-service:3000
     volumes:
       - academic-data:/app/.data
     restart: unless-stopped
@@ -71,6 +77,8 @@ services:
       - "4005:3000"
     environment:
       - DATABASE_URL=file:../.data/attendance.db
+      - SESSION_SERVICE_BASE_URL=http://session-service:3000
+      - POLICY_SERVICE_BASE_URL=http://policy-service:3000
     volumes:
       - attendance-data:/app/.data
     restart: unless-stopped
