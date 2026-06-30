@@ -47,6 +47,13 @@ export class TenantSchoolApplicationService {
         
         // Buat dummy school jika belum ada
         await this.tenantStore.saveSchool({ schoolId: 'school_dev', name: 'Dev School', status: 'active' });
+        await this.tenantStore.saveServiceStatus({
+          schoolId: 'school_dev',
+          serviceStatus: 'active',
+          reasonCode: null,
+          reasonText: null,
+          updatedAt: new Date().toISOString()
+        });
         
         // Daftarkan identity baru
         identity = { provider, idToken, userId, identityId };
