@@ -54,4 +54,4 @@ ENV PORT=3000
 EXPOSE $PORT
 
 # Run Prisma schema sync at startup when migrations are unavailable, then start app
-CMD ["sh", "-c", "if [ -d 'prisma' ]; then npx prisma migrate deploy 2>/dev/null || npx prisma db push --skip-generate; fi && node dist/main.js"]
+CMD ["sh", "-c", "if [ -d 'prisma' ]; then npx prisma migrate deploy 2>/dev/null || npx prisma db push; fi && node dist/main.js"]
