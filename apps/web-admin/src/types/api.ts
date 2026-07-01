@@ -12,6 +12,7 @@ export type SessionContext = {
   activeSchoolId: string | null;
   activeRole: string | null;
   serviceStatus: "active" | "limited" | "disabled";
+  requiresPasswordChange: boolean;
   expiresAt: string;
 };
 
@@ -44,6 +45,15 @@ export type School = {
   schoolId: string;
   name: string;
   status: "active" | "inactive";
+  district?: string;
+  npsn?: string;
+  authEmail?: string;
+  adminEmail?: string;
+  backupEmail?: string;
+  adminAccessActive?: boolean;
+  adminMustChangePassword?: boolean;
+  adminLastLoginAt?: string | null;
+  adminPasswordChangedAt?: string | null;
 };
 
 export type GetSchoolResponse = {

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { AppHttpError } from "@unified/packages-shared-kernel";
 import { createLogger } from "@unified/packages-observability";
 
@@ -7,6 +7,7 @@ const logger = createLogger("tenant-school-application");
 import { verifyFirebaseToken } from "../infrastructure/firebase-admin";
 import {
   CanonicalSessionPrincipal,
+  ChangeSchoolAdminPasswordRequest,
   CreateMembershipRequest,
   GetMembershipResponse,
   GetMyMembershipsResponse,
@@ -27,6 +28,30 @@ import {
 } from "../infrastructure/prisma-tenant-school-store";
 import { SessionClient } from "../infrastructure/session-client";
 
+const DEFAULT_SCHOOL_ADMIN_PASSWORD = "admin123";
+const SCHOOL_ADMIN_TOKEN_PREFIX = "NPSN_ADMIN::";
+
+function hashSchoolAdminPassword(password: string): string {
+  return createHash("sha256").update(password).digest("hex");
+}
+
+function parseSchoolAdminToken(idToken: string): { npsn: string; password: string } | null {
+  if (!idToken.startsWith(SCHOOL_ADMIN_TOKEN_PREFIX)) {
+    return null;
+  }
+  const payload = idToken.slice(SCHOOL_ADMIN_TOKEN_PREFIX.length);
+  const separatorIndex = payload.indexOf("::");
+  if (separatorIndex < 0) {
+    return null;
+  }
+  const npsn = payload.slice(0, separatorIndex).trim();
+  const password = payload.slice(separatorIndex + 2);
+  if (!npsn || !password) {
+    return null;
+  }
+  return { npsn, password };
+}
+
 @Injectable()
 export class TenantSchoolApplicationService {
   constructor(
@@ -35,6 +60,11 @@ export class TenantSchoolApplicationService {
   ) {}
 
   async bootstrapSession(provider: IdentityProvider, idToken: string): Promise<CanonicalSessionPrincipal> {
+    const schoolAdminAttempt = parseSchoolAdminToken(idToken);
+    if (schoolAdminAttempt) {
+      return this.bootstrapSchoolAdminSession(provider, schoolAdminAttempt.npsn, schoolAdminAttempt.password);
+    }
+
     // 1. Verifikasi ID Token menggunakan Firebase Admin (atau fallback dummy token untuk dev)
     const identityId = await verifyFirebaseToken(idToken);
 
@@ -46,7 +76,15 @@ export class TenantSchoolApplicationService {
         const userId = `usr_auto_${identityId.substring(0, 8)}`;
         
         // Buat dummy school jika belum ada
-        await this.tenantStore.saveSchool({ schoolId: 'school_dev', name: 'Dev School', status: 'active' });
+        await this.tenantStore.saveSchool({
+          schoolId: 'school_dev',
+          name: 'Dev School',
+          status: 'active',
+          adminAccessActive: true,
+          adminMustChangePassword: false,
+          latitude: null,
+          longitude: null
+        });
         await this.tenantStore.saveServiceStatus({
           schoolId: 'school_dev',
           serviceStatus: 'active',
@@ -116,6 +154,12 @@ export class TenantSchoolApplicationService {
       throw new AppHttpError(404, "NOT_FOUND", "Service status tidak ditemukan");
     }
 
+    const requiresPasswordChange = await this.resolvePasswordChangeRequirement(
+      resolvedMembership.role,
+      resolvedMembership.identityId,
+      resolvedMembership.schoolId
+    );
+
     return {
       userId: resolvedMembership.userId,
       identityId: resolvedMembership.identityId,
@@ -128,7 +172,8 @@ export class TenantSchoolApplicationService {
       activeMembershipId: resolvedMembership.membershipId,
       activeSchoolId: resolvedMembership.schoolId,
       activeRole: resolvedMembership.role,
-      serviceStatus: serviceStatus.serviceStatus
+      serviceStatus: serviceStatus.serviceStatus,
+      requiresPasswordChange
     };
   }
 
@@ -159,24 +204,68 @@ export class TenantSchoolApplicationService {
     const sessionMe = await this.getSessionMe(authorizationHeader);
     this.assertTenantScopeFromSession(sessionMe, schoolId);
     const school = await this.tenantStore.getSchool(schoolId);
-    if (!school) {
-      throw new AppHttpError(404, "NOT_FOUND", "School tidak ditemukan");
-    }
     const updated = {
-      ...school,
-      name: request.name ?? school.name,
-      status: request.status ?? school.status
+      schoolId,
+      name: request.name ?? school?.name ?? schoolId,
+      status: request.status ?? school?.status ?? "active",
+      district: request.district ?? school?.district ?? null,
+      npsn: request.npsn ?? school?.npsn ?? null,
+      authEmail: request.authEmail ?? school?.authEmail ?? null,
+      adminEmail: request.adminEmail ?? school?.adminEmail ?? null,
+      backupEmail: request.backupEmail ?? school?.backupEmail ?? null,
+      adminAccessActive: request.adminAccessActive ?? school?.adminAccessActive ?? true,
+      adminPasswordHash: school?.adminPasswordHash ?? hashSchoolAdminPassword(DEFAULT_SCHOOL_ADMIN_PASSWORD),
+      adminMustChangePassword: school?.adminMustChangePassword ?? true,
+      adminLastLoginAt: school?.adminLastLoginAt ?? null,
+      adminPasswordChangedAt: school?.adminPasswordChangedAt ?? null,
+      latitude: request.latitude ?? school?.latitude ?? null,
+      longitude: request.longitude ?? school?.longitude ?? null
     };
     await this.tenantStore.saveSchool(updated);
+    await this.syncServiceStatusWithSchool(updated, await this.tenantStore.getServiceStatus(schoolId));
     await this.writeAuditLog({
       schoolId,
       actorUserId: sessionMe.session.userId,
-      action: "school.settings.updated",
+      action: school ? "school.settings.updated" : "school.created",
       targetType: "school",
       targetId: schoolId,
       payload: JSON.stringify(request)
     });
     return { school: updated };
+  }
+
+  async changeSchoolAdminPassword(
+    authorizationHeader: string,
+    schoolId: string,
+    request: ChangeSchoolAdminPasswordRequest
+  ): Promise<{ success: true }> {
+    const sessionMe = await this.getSessionMe(authorizationHeader);
+    this.assertTenantScopeFromSession(sessionMe, schoolId);
+    if (!["admin", "super_admin"].includes(String(sessionMe.session.activeRole || ""))) {
+      throw new AppHttpError(403, "FORBIDDEN", "Role tidak diizinkan mengubah password admin sekolah");
+    }
+
+    const school = await this.tenantStore.getSchool(schoolId);
+    if (!school) {
+      throw new AppHttpError(404, "NOT_FOUND", "School tidak ditemukan");
+    }
+
+    const now = new Date().toISOString();
+    await this.tenantStore.saveSchool({
+      ...school,
+      adminPasswordHash: hashSchoolAdminPassword(request.newPassword),
+      adminMustChangePassword: false,
+      adminPasswordChangedAt: now
+    });
+    await this.writeAuditLog({
+      schoolId,
+      actorUserId: sessionMe.session.userId,
+      action: "school_admin.password_changed",
+      targetType: "school_admin",
+      targetId: schoolId,
+      payload: JSON.stringify({ changedByRole: sessionMe.session.activeRole })
+    });
+    return { success: true };
   }
 
   async getServiceStatus(
@@ -329,6 +418,67 @@ export class TenantSchoolApplicationService {
     return this.tenantStore.getMembershipsByUserId(userId);
   }
 
+  private async bootstrapSchoolAdminSession(
+    provider: IdentityProvider,
+    rawNpsn: string,
+    password: string
+  ): Promise<CanonicalSessionPrincipal> {
+    const npsn = rawNpsn.trim();
+    const school = await this.tenantStore.getSchoolByNpsn(npsn);
+    if (!school) {
+      throw new AppHttpError(401, "UNAUTHENTICATED", "NPSN tidak dikenali");
+    }
+    if (school.status !== "active") {
+      throw new AppHttpError(403, "FORBIDDEN", "Tenant sekolah sedang tidak aktif");
+    }
+    if (school.adminAccessActive === false) {
+      throw new AppHttpError(403, "FORBIDDEN", "Login admin sekolah sedang ditutup oleh super admin");
+    }
+
+    const expectedHash = school.adminPasswordHash ?? hashSchoolAdminPassword(DEFAULT_SCHOOL_ADMIN_PASSWORD);
+    const providedHash = hashSchoolAdminPassword(password);
+    if (providedHash !== expectedHash) {
+      throw new AppHttpError(401, "UNAUTHENTICATED", "NPSN atau password salah");
+    }
+
+    const identityId = `idn_school_admin_${npsn}`;
+    const userId = `usr_school_admin_${npsn}`;
+    let identity = await this.tenantStore.getIdentity(provider, identityId);
+    if (!identity) {
+      identity = {
+        provider,
+        idToken: `school-admin:${npsn}`,
+        userId,
+        identityId
+      };
+      await this.tenantStore.createIdentityAccount(identity);
+    }
+
+    const memberships = await this.getMembershipsByUserId(identity.userId);
+    const existingMembership = memberships.find(
+      (item) => item.schoolId === school.schoolId && item.role === "admin"
+    );
+    if (!existingMembership) {
+      await this.tenantStore.createMembership({
+        membershipId: `mem_school_admin_${npsn}`,
+        userId: identity.userId,
+        identityId,
+        schoolId: school.schoolId,
+        role: "admin",
+        status: "active"
+      });
+    }
+
+    await this.tenantStore.saveSchool({
+      ...school,
+      adminPasswordHash: school.adminPasswordHash ?? expectedHash,
+      adminMustChangePassword: school.adminMustChangePassword,
+      adminLastLoginAt: new Date().toISOString()
+    });
+
+    return this.resolveSessionContext(identity.userId);
+  }
+
   private async changeMembershipStatus(
     authorizationHeader: string,
     membershipId: string,
@@ -362,10 +512,74 @@ export class TenantSchoolApplicationService {
   }
 
   private assertTenantScopeFromSession(sessionMe: Awaited<ReturnType<SessionClient["getSessionMe"]>>, schoolId: string) {
+    if (sessionMe.session.activeRole === "super_admin") {
+      return;
+    }
     const activeSchoolId = sessionMe.session.activeSchoolId;
     if (!activeSchoolId || activeSchoolId !== schoolId) {
       throw new AppHttpError(403, "TENANT_SCOPE_VIOLATION", "Tenant scope violation");
     }
+  }
+
+  private async resolvePasswordChangeRequirement(
+    role: string,
+    identityId: string,
+    schoolId: string
+  ): Promise<boolean> {
+    if (role !== "admin" || !identityId.startsWith("idn_school_admin_")) {
+      return false;
+    }
+    const school = await this.tenantStore.getSchool(schoolId);
+    return school?.adminMustChangePassword === true;
+  }
+
+  private async syncServiceStatusWithSchool(
+    school: {
+      schoolId: string;
+      status: string;
+      name: string;
+    },
+    existingStatus?: {
+      schoolId: string;
+      serviceStatus: "active" | "limited" | "disabled";
+      reasonCode?: string | null;
+      reasonText?: string | null;
+      updatedAt: string;
+    }
+  ): Promise<void> {
+    const now = new Date().toISOString();
+    const nextStatus =
+      school.status === "active"
+        ? existingStatus?.serviceStatus === "limited"
+          ? "limited"
+          : "active"
+        : "disabled";
+
+    const nextReasonCode =
+      school.status === "active"
+        ? existingStatus?.serviceStatus === "limited"
+          ? existingStatus.reasonCode ?? "manual_limit"
+          : existingStatus?.reasonCode === "tenant_closed"
+            ? "tenant_opened"
+            : existingStatus?.reasonCode ?? null
+        : "tenant_closed";
+
+    const nextReasonText =
+      school.status === "active"
+        ? existingStatus?.serviceStatus === "limited"
+          ? existingStatus.reasonText ?? null
+          : existingStatus?.reasonCode === "tenant_closed"
+            ? `Tenant ${school.name} dibuka kembali dari Database Induk.`
+            : existingStatus?.reasonText ?? null
+        : `Tenant ${school.name} ditutup dari Database Induk.`;
+
+    await this.tenantStore.saveServiceStatus({
+      schoolId: school.schoolId,
+      serviceStatus: nextStatus,
+      reasonCode: nextReasonCode,
+      reasonText: nextReasonText,
+      updatedAt: now
+    });
   }
 
   private mapMembership(item: MembershipRecord): MembershipDto {

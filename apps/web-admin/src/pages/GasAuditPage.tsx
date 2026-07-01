@@ -25,8 +25,7 @@ export default function GasAuditPage() {
 
   const filtered = useMemo(() => {
     const queryText = q.toLowerCase().trim();
-    // In actual implementation, we might filter by action prefix. For mock, just use action
-    const base = onlyGas ? rawLogs.filter((r) => r.action.toLowerCase().includes("gas")) : rawLogs;
+    const base = onlyGas ? rawLogs.filter((r) => r.action.toLowerCase().startsWith("gas.")) : rawLogs;
     if (!queryText) return base;
     return base.filter((r) => [r.action, r.entity, r.entityId, r.performedBy, r.details].join(" ").toLowerCase().includes(queryText));
   }, [onlyGas, q, rawLogs]);
@@ -48,9 +47,9 @@ export default function GasAuditPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-slate-100">Audit Feed (Realtime)</div>
-              <div className="mt-1 text-sm text-slate-300">Sumber data: <span className="font-semibold text-slate-200">platform_events</span> (400 terbaru)</div>
+              <div className="mt-1 text-sm text-slate-300">Sumber data: <span className="font-semibold text-slate-200">gas/audit-logs</span> (feed operasional persisten dari backend GAS)</div>
             </div>
-            <div className="text-xs text-slate-400">Live</div>
+            <div className="text-xs text-slate-400">Terekam dari create/update/delete support, broadcast, sync jobs, dan global config</div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -72,6 +71,10 @@ export default function GasAuditPage() {
               {onlyGas ? "Filter: gas.*" : "Filter: semua"}
             </button>
             <div className="text-xs text-slate-400">Tampil: <span className="font-semibold text-slate-200">{filtered.length}</span></div>
+          </div>
+
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
+            Feed ini sekarang disimpan di database `tenant-school-service`, tetapi cakupannya masih khusus aksi modul GAS dan belum menjadi event bus lintas service produksi.
           </div>
 
           <div className="overflow-x-auto">

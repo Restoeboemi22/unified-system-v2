@@ -50,6 +50,7 @@ export default function GasSyncJobsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gas-sync-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["gas-audit-logs"] });
       setNote("");
     },
     onError: (e) => setErrorMsg(String(e))
@@ -72,7 +73,10 @@ export default function GasSyncJobsPage() {
     },
     onMutate: (vars) => setBusyId(vars.id),
     onSettled: () => setBusyId(""),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["gas-sync-jobs"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gas-sync-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["gas-audit-logs"] });
+    },
     onError: (e) => setErrorMsg(String(e))
   });
 

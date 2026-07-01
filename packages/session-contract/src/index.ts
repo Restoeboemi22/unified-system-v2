@@ -48,6 +48,7 @@ export const SessionContextSchema = z.object({
   activeSchoolId: z.string().nullable(),
   activeRole: z.string().nullable(),
   serviceStatus: z.enum(["active", "limited", "disabled"]),
+  requiresPasswordChange: z.boolean().default(false),
   expiresAt: z.string()
 });
 export type SessionContextDto = z.infer<typeof SessionContextSchema>;

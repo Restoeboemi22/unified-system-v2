@@ -2,6 +2,7 @@ import { Body, Controller, Get, Header, HttpException, Param, Patch, Post, Req }
 import type { Request } from "express";
 import {
   CanonicalSessionPrincipal,
+  ChangeSchoolAdminPasswordRequestSchema,
   CreateMembershipRequestSchema,
   GetMembershipResponse,
   GetMyMembershipsResponse,
@@ -88,6 +89,25 @@ export class TenantSchoolController {
       );
     }
     return await this.app.getSchool(authorization, schoolId);
+  }
+
+  @Patch("/v1/schools/:schoolId/admin-password")
+  @Header("cache-control", "no-store")
+  async changeSchoolAdminPassword(
+    @Req() req: Request,
+    @Param("schoolId") schoolId: string,
+    @Body() rawBody: unknown
+  ): Promise<{ success: true }> {
+    const authorization = parseAuthorizationHeader(req);
+    if (!authorization) {
+      throw new HttpException(
+        createApiErrorResponse("UNAUTHENTICATED", "Session tidak valid"),
+        401
+      );
+    }
+    const parsed = ChangeSchoolAdminPasswordRequestSchema.safeParse(rawBody);
+    if (!parsed.success) badRequest(parsed.error);
+    return await this.app.changeSchoolAdminPassword(authorization, schoolId, parsed.data);
   }
 
   @Patch("/v1/schools/:schoolId/settings")

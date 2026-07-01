@@ -64,7 +64,7 @@ export class PolicyApplicationService {
         ? (request.resource["schoolId"] as string)
         : null;
 
-    if (resourceSchoolId && resourceSchoolId !== me.activeSchoolId) {
+    if (resourceSchoolId && resourceSchoolId !== me.activeSchoolId && me.activeRole !== "super_admin") {
       logger.warn("policy_denial", { action: request.action, reason: "tenant_scope_violation" });
       return {
         allowed: false,

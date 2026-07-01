@@ -9,8 +9,13 @@ type SupportActionType = "clear_cache" | "rerun_sync" | "reset_access";
 type SupportStatus = "OPEN" | "DONE" | "CANCELLED";
 
 type SupportRequestRow = {
-  id: string; type: SupportActionType; schoolId: string;
-  reason?: string; status: SupportStatus; createdAt: number | null; createdBy?: string;
+  id: string;
+  type: SupportActionType;
+  schoolId: string;
+  reason?: string;
+  status: SupportStatus;
+  createdAt: number | null;
+  createdBy?: string;
 };
 
 export default function GasSupportPage() {
@@ -30,8 +35,28 @@ export default function GasSupportPage() {
     },
     enabled: !!sessionId
   });
-  
-  const rows: SupportRequestRow[] = data?.tickets || [];
+
+  const { data: schoolsData } = useQuery({
+    queryKey: ["gas-support-schools"],
+    queryFn: () => {
+      if (!sessionId) throw new Error("Session not found");
+      return api.getSchools(sessionId);
+    },
+    enabled: !!sessionId
+  });
+
+  const rows: SupportRequestRow[] = useMemo(() => {
+    const rawTickets = data?.tickets ?? [];
+    return rawTickets.map((item: any) => ({
+      id: item.id,
+      type: item.type,
+      schoolId: item.schoolId,
+      reason: item.reason,
+      status: item.status,
+      createdAt: typeof item.createdAt === "number" ? item.createdAt : null,
+      createdBy: item.createdBy,
+    }));
+  }, [data?.tickets]);
 
   const stats = useMemo(() => {
     const open = rows.filter((r) => r.status === "OPEN").length;
@@ -45,16 +70,69 @@ export default function GasSupportPage() {
     },
     onMutate: (vars) => setBusyId(vars.id),
     onSettled: () => setBusyId(""),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["gas-support-tickets"] }),
-    onError: (e) => setErrorMsg(String(e))
+    onSuccess: () => {
+      setErrorMsg("");
+      queryClient.invalidateQueries({ queryKey: ["gas-support-tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["gas-audit-logs"] });
+    },
+    onError: (e) => setErrorMsg(e instanceof Error ? e.message : String(e))
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (payload: {
+      type: SupportActionType;
+      schoolId: string;
+      reason?: string;
+    }) => {
+      if (!sessionId) throw new Error("Session not found");
+      return api.createGasSupportTicket(sessionId, payload);
+    },
+    onSuccess: () => {
+      setErrorMsg("");
+      setSchoolId("");
+      setReason("");
+      setType("clear_cache");
+      queryClient.invalidateQueries({ queryKey: ["gas-support-tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["gas-audit-logs"] });
+    },
+    onError: (e) => setErrorMsg(e instanceof Error ? e.message : String(e))
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (!sessionId) throw new Error("Session not found");
+      return api.deleteGasSupportTicket(sessionId, id);
+    },
+    onMutate: (id) => setBusyId(id),
+    onSettled: () => setBusyId(""),
+    onSuccess: () => {
+      setErrorMsg("");
+      queryClient.invalidateQueries({ queryKey: ["gas-support-tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["gas-audit-logs"] });
+    },
+    onError: (e) => setErrorMsg(e instanceof Error ? e.message : String(e))
   });
 
   const setStatus = (id: string, status: SupportStatus) => {
     statusMutation.mutate({ id, status });
   };
 
-  const deleteRequest = async (id: string) => {
-    // mock delete
+  const createRequest = () => {
+    setErrorMsg("");
+    if (!schoolId.trim()) {
+      setErrorMsg("schoolId wajib diisi.");
+      return;
+    }
+    createMutation.mutate({
+      type,
+      schoolId: schoolId.trim().toLowerCase(),
+      reason: reason.trim() || undefined
+    });
+  };
+
+  const deleteRequest = (id: string) => {
+    setErrorMsg("");
+    deleteMutation.mutate(id);
   };
 
   return (
@@ -87,7 +165,7 @@ export default function GasSupportPage() {
           <div>
             <div className="text-sm font-semibold text-slate-100">Support Request Queue</div>
             <div className="mt-1 text-sm text-slate-300">Sumber data: <span className="font-semibold text-slate-200">gas/support_requests</span></div>
-            <div className="mt-1 text-xs text-amber-200">`OPEN`, `DONE`, dan `CANCELLED` adalah status antrian/operator, bukan bukti aksi backend sudah dieksekusi otomatis.</div>
+            <div className="mt-1 text-xs text-amber-200">`OPEN`, `DONE`, dan `CANCELLED` adalah status antrian/operator. Semua perubahan di halaman ini sekarang tersimpan ke backend GAS dan ikut masuk ke audit feed persisten.</div>
           </div>
 
           {errorMsg && <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">{errorMsg}</div>}
@@ -103,7 +181,18 @@ export default function GasSupportPage() {
             </div>
             <div>
               <div className="text-xs font-semibold tracking-widest text-slate-400">SCHOOL ID</div>
-              <input value={schoolId} onChange={(e) => setSchoolId(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-700/50 bg-slate-950/30 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500" placeholder="contoh: smpn_3_pacet" />
+              <select
+                value={schoolId}
+                onChange={(e) => setSchoolId(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-700/50 bg-slate-950/30 px-4 py-2 text-sm text-slate-100"
+              >
+                <option value="">Pilih schoolId</option>
+                {(schoolsData?.schools ?? []).map((school) => (
+                  <option key={school.schoolId} value={school.schoolId}>
+                    {school.schoolId} - {school.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="sm:col-span-2">
               <div className="text-xs font-semibold tracking-widest text-slate-400">ALASAN</div>
@@ -111,12 +200,14 @@ export default function GasSupportPage() {
             </div>
           </div>
           <div className="flex items-center justify-end">
-            <button type="button" onClick={() => {
-              if (!schoolId.trim()) { setErrorMsg("schoolId wajib diisi."); return; }
-              // Wait, create support ticket endpoint is not implemented in mock yet.
-              // Let's just reset state or show error if we want.
-              setErrorMsg("Pembuatan tiket baru hanya tersedia dari portal sekolah (simulasi).");
-            }} className="inline-flex items-center justify-center rounded-xl border border-blue-500/40 bg-blue-500/15 px-4 py-2 text-sm font-semibold text-blue-100 hover:bg-blue-500/20">Buat Antrian</button>
+            <button
+              type="button"
+              onClick={createRequest}
+              disabled={createMutation.isPending}
+              className="inline-flex items-center justify-center rounded-xl border border-blue-500/40 bg-blue-500/15 px-4 py-2 text-sm font-semibold text-blue-100 hover:bg-blue-500/20 disabled:opacity-50"
+            >
+              {createMutation.isPending ? "Membuat..." : "Buat Antrian"}
+            </button>
           </div>
         </div>
 

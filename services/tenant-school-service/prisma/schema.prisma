@@ -10,18 +10,28 @@ datasource db {
 }
 
 model School {
-  schoolId       String          @id
-  name           String
-  status         String
-  latitude       Float?
-  longitude      Float?
-  ServiceStatus  ServiceStatus?
-  Memberships    Membership[]
-  AuditLogs      AuditLog[]
-  GasSyncJobs    GasSyncJob[]      @relation("GasSyncJobSchool")
-  GasBroadcasts  GasBroadcast[]    @relation("GasBroadcastTargetSchool")
-  GasSupports    GasSupportTicket[]
-  GasAuditEvents GasAuditEvent[]   @relation("GasAuditEventSchool")
+  schoolId                String             @id
+  name                    String
+  status                  String
+  district                String?
+  npsn                    String?            @unique
+  authEmail               String?
+  adminEmail              String?
+  backupEmail             String?
+  adminAccessActive       Boolean            @default(true)
+  adminPasswordHash       String?
+  adminMustChangePassword Boolean            @default(true)
+  adminLastLoginAt        DateTime?
+  adminPasswordChangedAt  DateTime?
+  latitude                Float?
+  longitude               Float?
+  ServiceStatus           ServiceStatus?
+  Memberships             Membership[]
+  AuditLogs               AuditLog[]
+  GasSyncJobs             GasSyncJob[]       @relation("GasSyncJobSchool")
+  GasBroadcasts           GasBroadcast[]     @relation("GasBroadcastTargetSchool")
+  GasSupports             GasSupportTicket[]
+  GasAuditEvents          GasAuditEvent[]    @relation("GasAuditEventSchool")
 }
 
 model ServiceStatus {

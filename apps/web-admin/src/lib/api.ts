@@ -155,6 +155,16 @@ export const api = {
       }
     );
   },
+  changeSchoolAdminPassword(sessionId: string, schoolId: string, input: { newPassword: string }) {
+    return request<{ success: boolean }>(
+      `${env.tenantSchoolServiceUrl}/v1/schools/${schoolId}/admin-password`,
+      {
+        method: "PATCH",
+        sessionId,
+        json: input
+      }
+    );
+  },
   
   // -- GAS Mock Endpoints --
   getGasSyncJobs(sessionId: string) {
@@ -172,14 +182,43 @@ export const api = {
   createGasBroadcast(sessionId: string, input: any) {
     return request<any>(`${env.tenantSchoolServiceUrl}/v1/gas/broadcasts`, { method: "POST", sessionId, json: input });
   },
+  deleteGasBroadcast(sessionId: string, id: string) {
+    return request<{ success: boolean }>(`${env.tenantSchoolServiceUrl}/v1/gas/broadcasts/${id}`, {
+      method: "DELETE",
+      sessionId
+    });
+  },
   getGasSupportTickets(sessionId: string) {
     return request<any>(`${env.tenantSchoolServiceUrl}/v1/gas/support-tickets`, { sessionId });
+  },
+  createGasSupportTicket(sessionId: string, input: any) {
+    return request<any>(`${env.tenantSchoolServiceUrl}/v1/gas/support-tickets`, {
+      method: "POST",
+      sessionId,
+      json: input
+    });
   },
   updateGasSupportTicketStatus(sessionId: string, id: string, status: string) {
     return request<any>(`${env.tenantSchoolServiceUrl}/v1/gas/support-tickets/${id}/status`, { method: "PATCH", sessionId, json: { status } });
   },
+  deleteGasSupportTicket(sessionId: string, id: string) {
+    return request<{ success: boolean }>(`${env.tenantSchoolServiceUrl}/v1/gas/support-tickets/${id}`, {
+      method: "DELETE",
+      sessionId
+    });
+  },
   getGasAuditLogs(sessionId: string) {
     return request<any>(`${env.tenantSchoolServiceUrl}/v1/gas/audit-logs`, { sessionId });
+  },
+  getGasGlobalConfig(sessionId: string) {
+    return request<any>(`${env.tenantSchoolServiceUrl}/v1/gas/global-config`, { sessionId });
+  },
+  saveGasGlobalConfig(sessionId: string, input: Record<string, unknown>) {
+    return request<any>(`${env.tenantSchoolServiceUrl}/v1/gas/global-config`, {
+      method: "PUT",
+      sessionId,
+      json: input
+    });
   },
 
   // -- EduLock Mock Endpoints --

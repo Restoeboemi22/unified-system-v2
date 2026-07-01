@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GasLegacyLayout } from "@/components/layout/GasLegacyLayout";
+import { api } from "@/lib/api";
+import { useSessionStore } from "@/store/session-store";
 
 const DEFAULT_CONFIG = {
   school_year: "2025/2026",
@@ -15,6 +18,8 @@ const DEFAULT_CONFIG = {
 };
 
 export default function GasGlobalConfigPage() {
+  const sessionId = useSessionStore((state) => state.session?.sessionId);
+  const queryClient = useQueryClient();
   const [jsonText, setJsonText] = useState<string>(JSON.stringify(DEFAULT_CONFIG, null, 2));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -22,6 +27,38 @@ export default function GasGlobalConfigPage() {
   const dirtyRef = useRef(false);
 
   const pathLabel = "gas/global_config";
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["gas-global-config"],
+    queryFn: async () => {
+      if (!sessionId) throw new Error("Session not found");
+      return api.getGasGlobalConfig(sessionId);
+    },
+    enabled: !!sessionId,
+  });
+
+  useEffect(() => {
+    if (dirtyRef.current) return;
+    const config = data?.config ?? DEFAULT_CONFIG;
+    setJsonText(JSON.stringify(config, null, 2));
+  }, [data?.config]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      if (!sessionId) throw new Error("Session not found");
+      return api.saveGasGlobalConfig(sessionId, payload);
+    },
+    onSuccess: () => {
+      dirtyRef.current = false;
+      setStatus("Konfigurasi global berhasil disimpan ke backend V2.");
+      setError("");
+      queryClient.invalidateQueries({ queryKey: ["gas-global-config"] });
+      setTimeout(() => setStatus(""), 2000);
+    },
+    onError: (mutationError) => {
+      setError(mutationError instanceof Error ? mutationError.message : "Gagal menyimpan konfigurasi.");
+    },
+  });
 
   const save = async () => {
     setBusy(true);
@@ -37,15 +74,19 @@ export default function GasGlobalConfigPage() {
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Konfigurasi harus berupa object JSON (bukan array / nilai tunggal).");
       }
-      await new Promise((res) => setTimeout(res, 500));
-      dirtyRef.current = false;
-      setStatus("Tersimpan.");
-      setTimeout(() => setStatus(""), 2000);
+      await saveMutation.mutateAsync(parsed as Record<string, unknown>);
     } catch (e: any) {
       setError(String(e?.message || e || "Gagal menyimpan konfigurasi."));
     } finally {
       setBusy(false);
     }
+  };
+
+  const resetToDefault = () => {
+    setError("");
+    setStatus("");
+    dirtyRef.current = true;
+    setJsonText(JSON.stringify(DEFAULT_CONFIG, null, 2));
   };
 
   return (
@@ -56,7 +97,7 @@ export default function GasGlobalConfigPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-100">Konfigurasi Global</h1>
               <p className="mt-1 text-sm text-slate-300">
-                Konfigurasi default operasional GAS lintas tenant (siap untuk versioning/rollout).
+                Editor konfigurasi operasional GAS lintas tenant yang tersimpan di backend `tenant-school-service`.
               </p>
             </div>
             <Link
@@ -71,12 +112,25 @@ export default function GasGlobalConfigPage() {
         <div className="rounded-3xl bg-slate-900/60 p-6 shadow-xl border border-slate-700/50 backdrop-blur-2xl space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-slate-100">Realtime Global Config</div>
+              <div className="text-sm font-semibold text-slate-100">Global Config</div>
               <div className="mt-1 text-sm text-slate-300">
-                Sumber data: <span className="font-semibold text-slate-200">{pathLabel}</span>
+                Target kontrak: <span className="font-semibold text-slate-200">{pathLabel}</span>
+              </div>
+              <div className="mt-1 text-xs text-amber-200">
+                Konfigurasi yang valid akan disimpan ke backend V2 dan ikut muncul kembali saat halaman ini dibuka ulang.
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={resetToDefault}
+                className={`inline-flex items-center justify-center rounded-xl border border-slate-700/50 bg-slate-950/30 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-950/40 transition ${
+                  busy ? "opacity-60 cursor-not-allowed" : ""
+                }`}
+              >
+                Reset Draft
+              </button>
               <button
                 type="button"
                 disabled={busy}
@@ -95,6 +149,12 @@ export default function GasGlobalConfigPage() {
           ) : null}
           {status ? (
             <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-100">{status}</div>
+          ) : null}
+
+          {isLoading ? (
+            <div className="rounded-2xl border border-slate-700/40 bg-slate-950/20 p-4 text-sm text-slate-300">
+              Memuat konfigurasi global...
+            </div>
           ) : null}
 
           <textarea

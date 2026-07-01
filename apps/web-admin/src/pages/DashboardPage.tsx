@@ -1,80 +1,59 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, BookOpen, Database, LayoutDashboard, Lock, LogOut, Rocket, Wallet } from "lucide-react";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  ArrowRight,
+  BookOpen,
+  Database,
+  LayoutDashboard,
+  Lock,
+  LogOut,
+  Rocket,
+  Wallet,
+} from "lucide-react";
+import { api } from "@/lib/api";
 import { useSessionStore } from "@/store/session-store";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
-type SuperIntegrationSummary = {
+type SuperAdminOverview = {
   loading: boolean;
-  tenantsTotal: number;
-  tenantsActive: number;
-  adminSchools: number;
-  principalsTotal: number;
-  activeSessions: number;
-  violationsTotal: number;
-  attendanceToday: number;
-  attendanceSchools: number;
-  attendanceLastAt: number | null;
-  prayerToday: number;
-  prayerSchools: number;
-  prayerLastAt: number | null;
-  discipline7d: number;
-  disciplineSchools: number;
-  disciplineLastAt: number | null;
-  literacyReportsMonth: number;
-  literacyReportsPending: number;
-  literacyTasksActive: number;
-  lenteraConfigured: number;
-  lenteraLastAt: number | null;
-  missingAdmin: string[];
-  missingPrincipal: string[];
-  missingAttendance: string[];
-  missingPrayer: string[];
-  missingLentera: string[];
-  recentEvents: Array<{ id: string; at: number; message: string; schoolId: string }>;
+  schoolsTotal: number;
+  schoolsActive: number;
+  schoolsInactive: number;
+  serviceActive: number;
+  serviceLimited: number;
+  serviceDisabled: number;
+  serviceUnknown: number;
+  capabilitiesTotal: number;
+  currentMemberships: number;
+  missingServiceStatus: string[];
+  limitedSchools: string[];
+  disabledSchools: string[];
+  recentEvents: Array<{ id: string; at: string; message: string; schoolId: string }>;
 };
 
-const mockSummary: SuperIntegrationSummary = {
-  loading: false,
-  tenantsTotal: 42,
-  tenantsActive: 41,
-  adminSchools: 41,
-  principalsTotal: 1,
-  activeSessions: 0,
-  violationsTotal: 7,
-  attendanceToday: 0,
-  attendanceSchools: 1,
-  attendanceLastAt: 1718841148000,
-  prayerToday: 0,
-  prayerSchools: 0,
-  prayerLastAt: null,
-  discipline7d: 0,
-  disciplineSchools: 0,
-  disciplineLastAt: 1707621963000,
-  literacyReportsMonth: 0,
-  literacyReportsPending: 0,
-  literacyTasksActive: 1,
-  lenteraConfigured: 0,
-  lenteraLastAt: null,
-  missingAdmin: [],
-  missingPrincipal: ["SMPN 1 DAWARBLANDONG", "SMPN 1 DLANGGU", "SMPN 1 GEDEG", "SMPN 1 GONDANG"],
-  missingAttendance: [],
-  missingPrayer: [],
-  missingLentera: [],
-  recentEvents: [
-    { id: "1", at: 1719055786000, message: "Reset device kepala sekolah: wahyu_smpn3pacet", schoolId: "global" }
-  ],
-};
+type SchoolServiceState = "active" | "limited" | "disabled" | "unknown";
 
-function formatRelativeTime(ts: number | null): string {
-  if (!ts) return "Belum ada";
-  return new Date(ts).toLocaleString("id-ID");
+function formatRelativeTime(value?: string | null): string {
+  if (!value) return "Belum ada";
+  const ts = new Date(value);
+  if (Number.isNaN(ts.getTime())) return "Belum ada";
+  return ts.toLocaleString("id-ID");
+}
+
+function summarizeList(items: string[], emptyLabel: string): string {
+  if (items.length === 0) return emptyLabel;
+  if (items.length <= 3) return items.join(", ");
+  return `${items.slice(0, 3).join(", ")} +${items.length - 3} lainnya`;
 }
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const session = useAuthGuard();
   const clearAuth = useSessionStore((state) => state.clearAuth);
+  const memberships = useSessionStore((state) => state.memberships);
+  const capabilities = useSessionStore((state) => state.capabilities);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -83,17 +62,95 @@ export default function DashboardPage() {
 
   const role = session?.activeRole;
   const schoolName = session?.activeSchoolId || "Admin Sekolah";
+  const isSuperAdmin = role === "super_admin";
 
   const portalLinks = useMemo(() => {
     return {
       overviewHref: "#overview",
-      databaseHref: role === "super_admin" ? "/super-admin/database" : "/admin/students?sub=students",
-      gasHref: role === "super_admin" ? "/dashboard/super" : "/dashboard/students",
-      edulockHref: role === "super_admin" ? "/edulock/super" : "/edulock/admin",
+      databaseHref: isSuperAdmin ? "/super-admin/database" : "/admin/students?sub=students",
+      gasHref: isSuperAdmin ? "/dashboard/super" : "/dashboard/students",
+      edulockHref: isSuperAdmin ? "/edulock/super" : "/edulock/admin",
       serviceStatusHref: "/dashboard/super/service-status",
       lenteraHref: "/admin/lentera",
     };
-  }, [role]);
+  }, [isSuperAdmin]);
+
+  const { data: schoolsData, isLoading: schoolsLoading } = useQuery({
+    queryKey: ["dashboard-overview-schools"],
+    queryFn: () => {
+      if (!session?.sessionId) throw new Error("Session not found");
+      return api.getSchools(session.sessionId);
+    },
+    enabled: mounted && !!session?.sessionId && isSuperAdmin,
+  });
+
+  const serviceStatusQueries = useQueries({
+    queries: isSuperAdmin
+      ? (schoolsData?.schools ?? []).map((school) => ({
+          queryKey: ["dashboard-overview-service-status", school.schoolId],
+          queryFn: () => {
+            if (!session?.sessionId) throw new Error("Session not found");
+            return api.getServiceStatus(session.sessionId, school.schoolId);
+          },
+          enabled: mounted && !!session?.sessionId,
+        }))
+      : [],
+  });
+
+  const superAdminOverview = useMemo<SuperAdminOverview>(() => {
+    const schools = schoolsData?.schools ?? [];
+    const rows = schools.map((school, index) => {
+      const serviceStatus = serviceStatusQueries[index]?.data?.serviceStatus;
+      const state = (serviceStatus?.serviceStatus ?? "unknown") as SchoolServiceState;
+      return {
+        schoolId: school.schoolId,
+        schoolName: school.name,
+        schoolStatus: school.status,
+        serviceStatus: state,
+        reasonText: serviceStatus?.reasonText ?? "",
+        updatedAt: serviceStatus?.updatedAt ?? null,
+      };
+    });
+
+    const recentEvents = rows
+      .filter((row) => row.updatedAt)
+      .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
+      .slice(0, 5)
+      .map((row) => ({
+        id: `${row.schoolId}-${row.updatedAt}`,
+        at: row.updatedAt ?? "",
+        message:
+          row.reasonText ||
+          `Status layanan ${row.schoolName} berada pada mode ${row.serviceStatus}.`,
+        schoolId: row.schoolId,
+      }));
+
+    return {
+      loading:
+        schoolsLoading ||
+        (rows.length > 0 &&
+          serviceStatusQueries.some((query) => query.isLoading || query.isFetching)),
+      schoolsTotal: rows.length,
+      schoolsActive: rows.filter((row) => row.schoolStatus === "active").length,
+      schoolsInactive: rows.filter((row) => row.schoolStatus !== "active").length,
+      serviceActive: rows.filter((row) => row.serviceStatus === "active").length,
+      serviceLimited: rows.filter((row) => row.serviceStatus === "limited").length,
+      serviceDisabled: rows.filter((row) => row.serviceStatus === "disabled").length,
+      serviceUnknown: rows.filter((row) => row.serviceStatus === "unknown").length,
+      capabilitiesTotal: capabilities.length,
+      currentMemberships: memberships.length,
+      missingServiceStatus: rows
+        .filter((row) => row.serviceStatus === "unknown")
+        .map((row) => row.schoolName),
+      limitedSchools: rows
+        .filter((row) => row.serviceStatus === "limited")
+        .map((row) => row.schoolName),
+      disabledSchools: rows
+        .filter((row) => row.serviceStatus === "disabled")
+        .map((row) => row.schoolName),
+      recentEvents,
+    };
+  }, [capabilities.length, memberships.length, schoolsData?.schools, schoolsLoading, serviceStatusQueries]);
 
   if (!mounted || !session) return null;
 
@@ -119,7 +176,7 @@ export default function DashboardPage() {
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold text-white">Dashboard Satu Pintu</div>
                   <div className="truncate text-xs text-slate-400">
-                    {role === "super_admin" ? "Super Admin" : schoolName}
+                    {isSuperAdmin ? "Super Admin" : schoolName}
                   </div>
                 </div>
               </div>
@@ -163,7 +220,7 @@ export default function DashboardPage() {
                   <ArrowRight className="ml-auto h-4 w-4 text-slate-400" />
                 </Link>
 
-                {role === "super_admin" && (
+                {isSuperAdmin && (
                   <Link
                     to={portalLinks.serviceStatusHref}
                     className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm font-semibold text-slate-100 hover:bg-white/10 transition"
@@ -174,7 +231,7 @@ export default function DashboardPage() {
                   </Link>
                 )}
 
-                {role !== "super_admin" && (
+                {!isSuperAdmin && (
                   <Link
                     to={portalLinks.lenteraHref}
                     className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm font-semibold text-slate-100 hover:bg-white/10 transition"
@@ -209,31 +266,33 @@ export default function DashboardPage() {
                   <div className="text-xs font-semibold tracking-widest text-slate-400">PORTAL</div>
                   <h1 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl">Dashboard Satu Pintu</h1>
                   <p className="mt-1 text-sm text-slate-300">
-                    {role === "super_admin"
+                    {isSuperAdmin
                       ? "Pusat monitoring dan kontrol lintas tenant."
                       : "Pintu masuk ke DATABASE, GAS, EduLock, dan Lentera."}
                   </p>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100">
-                  {role === "super_admin"
+                  {isSuperAdmin
                     ? "SUPER ADMIN"
                     : `ADMIN SEKOLAH: ${String(schoolName).toUpperCase()}`}
                 </div>
               </div>
             </div>
 
-            {role === "super_admin" && (
+            {isSuperAdmin && (
               <section id="overview" className="scroll-mt-6 rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-xl backdrop-blur">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="text-xs font-semibold tracking-widest text-slate-400">DASHBOARD OVERVIEW</div>
-                    <div className="mt-2 text-sm font-semibold text-white">Ringkasan Integrasi Antar Modul</div>
+                    <div className="mt-2 text-sm font-semibold text-white">Ringkasan Tenant & Status Layanan Nyata</div>
                     <div className="mt-1 text-sm text-slate-300">
-                      Monitoring realtime lintas tenant untuk tenant registry, EduLock, presensi, sholat, kedisiplinan, dan Lentera.
+                      Ringkasan ini hanya menampilkan data yang benar-benar tersedia di backend V2 saat ini. Modul tanpa endpoint agregat tetap ditandai sebagai backlog, bukan diisi angka dummy.
                     </div>
                   </div>
                   <div className="text-xs text-slate-400">
-                    {mockSummary.loading ? "Memuat data modul..." : `${mockSummary.tenantsActive} tenant aktif dipantau`}
+                    {superAdminOverview.loading
+                      ? "Memuat data tenant..."
+                      : `${superAdminOverview.schoolsActive} tenant aktif dipantau`}
                   </div>
                 </div>
 
@@ -241,54 +300,54 @@ export default function DashboardPage() {
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="text-xs font-semibold tracking-widest text-slate-400">TENANT & AKSES</div>
                     <div className="mt-3 space-y-1 text-sm text-slate-200">
-                      <div>{mockSummary.tenantsTotal} sekolah, {mockSummary.tenantsActive} aktif</div>
-                      <div>{mockSummary.adminSchools} sekolah punya akun admin yang dibuka dari registry tenant</div>
-                      <div>{mockSummary.principalsTotal} sekolah sudah punya akun kepala sekolah</div>
+                      <div>{superAdminOverview.schoolsTotal} sekolah, {superAdminOverview.schoolsActive} aktif</div>
+                      <div>{superAdminOverview.schoolsInactive} tenant ditandai nonaktif dari registry sekolah</div>
+                      <div>{superAdminOverview.currentMemberships} membership aktif pada sesi ini, {superAdminOverview.capabilitiesTotal} capability termuat</div>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs font-semibold tracking-widest text-slate-400">EDULOCK</div>
+                    <div className="text-xs font-semibold tracking-widest text-slate-400">STATUS LAYANAN</div>
                     <div className="mt-3 space-y-1 text-sm text-slate-200">
-                      <div>{mockSummary.activeSessions} sesi perangkat aktif</div>
-                      <div>{mockSummary.violationsTotal} violation log tercatat</div>
-                      <div>{mockSummary.recentEvents.length} event platform terbaru siap ditinjau</div>
+                      <div>{superAdminOverview.serviceActive} sekolah berstatus layanan aktif</div>
+                      <div>{superAdminOverview.serviceLimited} sekolah sedang terbatas, {superAdminOverview.serviceDisabled} nonaktif</div>
+                      <div>{superAdminOverview.serviceUnknown} sekolah belum memiliki data service status lengkap</div>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs font-semibold tracking-widest text-slate-400">PRESENSI SISWA</div>
+                    <div className="text-xs font-semibold tracking-widest text-slate-400">AKADEMIK GLOBAL</div>
                     <div className="mt-3 space-y-1 text-sm text-slate-200">
-                      <div>{mockSummary.attendanceToday} log hari ini</div>
-                      <div>{mockSummary.attendanceSchools} sekolah mengirim data</div>
-                      <div>Update terakhir: {formatRelativeTime(mockSummary.attendanceLastAt)}</div>
+                      <div>Agregasi global siswa, guru, staf, dan kepsek belum tersedia pada API super admin.</div>
+                      <div>Data akademik saat ini masih tenant-scoped per sekolah aktif.</div>
+                      <div>Next step: siapkan endpoint summary lintas tenant untuk control plane.</div>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs font-semibold tracking-widest text-slate-400">PRESENSI SHOLAT</div>
+                    <div className="text-xs font-semibold tracking-widest text-slate-400">PRESENSI & SHOLAT</div>
                     <div className="mt-3 space-y-1 text-sm text-slate-200">
-                      <div>{mockSummary.prayerToday} log hari ini</div>
-                      <div>{mockSummary.prayerSchools} sekolah mengirim data</div>
-                      <div>Update terakhir: {formatRelativeTime(mockSummary.prayerLastAt)}</div>
+                      <div>Presensi harian sudah ada per tanggal, tetapi belum ada summary lintas tenant.</div>
+                      <div>Data presensi sholat belum memiliki endpoint agregat resmi di V2.</div>
+                      <div>Dashboard ini sengaja tidak menebak angka dari sumber yang belum tersedia.</div>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs font-semibold tracking-widest text-slate-400">KEDISIPLINAN</div>
+                    <div className="text-xs font-semibold tracking-widest text-slate-400">EDULOCK & DISIPLIN</div>
                     <div className="mt-3 space-y-1 text-sm text-slate-200">
-                      <div>{mockSummary.discipline7d} record dalam 7 hari</div>
-                      <div>{mockSummary.disciplineSchools} sekolah tercakup</div>
-                      <div>Update terakhir: {formatRelativeTime(mockSummary.disciplineLastAt)}</div>
+                      <div>Widget EduLock legacy sudah tersedia, tetapi summary perangkat global masih mock backlog.</div>
+                      <div>Belum ada endpoint violation/device-session summary untuk dashboard satu pintu.</div>
+                      <div>Perlu kontrak agregat sebelum angka ditampilkan di halaman ini.</div>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="text-xs font-semibold tracking-widest text-slate-400">LENTERA</div>
                     <div className="mt-3 space-y-1 text-sm text-slate-200">
-                      <div>{mockSummary.literacyReportsMonth} laporan literasi bulan ini</div>
-                      <div>{mockSummary.literacyReportsPending} laporan masih pending, {mockSummary.literacyTasksActive} task aktif</div>
-                      <div>{mockSummary.lenteraConfigured} sekolah sudah punya settings Lentera</div>
+                      <div>Modul Lentera sudah ada pada sisi UI admin sekolah.</div>
+                      <div>Konfigurasi dan report global Lentera belum memiliki endpoint monitoring super admin.</div>
+                      <div>Area ini tetap ditandai backlog sampai kontrak backend tersedia.</div>
                     </div>
                   </div>
                 </div>
@@ -298,26 +357,28 @@ export default function DashboardPage() {
                     <div className="text-sm font-semibold text-white">Titik Integrasi Yang Perlu Ditindak</div>
                     <div className="mt-3 space-y-3 text-sm text-slate-200">
                       <div>
-                        <span className="font-semibold text-slate-100">Belum ada admin:</span>{" "}
-                        {mockSummary.missingAdmin.length > 0
-                          ? mockSummary.missingAdmin.join(", ")
-                          : "semua tenant aktif sudah punya konfigurasi akun admin"}
+                        <span className="font-semibold text-slate-100">Belum ada service status:</span>{" "}
+                        {summarizeList(
+                          superAdminOverview.missingServiceStatus,
+                          "semua tenant sudah memiliki service status"
+                        )}
                       </div>
                       <div>
-                        <span className="font-semibold text-slate-100">Belum ada akun kepsek:</span>{" "}
-                        {mockSummary.missingPrincipal.length > 0 ? mockSummary.missingPrincipal.join(", ") : "semua tenant aktif sudah punya akun kepala sekolah"}
+                        <span className="font-semibold text-slate-100">Layanan terbatas:</span>{" "}
+                        {summarizeList(
+                          superAdminOverview.limitedSchools,
+                          "tidak ada tenant yang sedang terbatas"
+                        )}
                       </div>
                       <div>
-                        <span className="font-semibold text-slate-100">Belum ada presensi hari ini:</span>{" "}
-                        {mockSummary.missingAttendance.length > 0 ? mockSummary.missingAttendance.join(", ") : "semua tenant aktif sudah mengirim presensi"}
+                        <span className="font-semibold text-slate-100">Layanan nonaktif:</span>{" "}
+                        {summarizeList(
+                          superAdminOverview.disabledSchools,
+                          "tidak ada tenant yang sedang nonaktif"
+                        )}
                       </div>
-                      <div>
-                        <span className="font-semibold text-slate-100">Belum ada data sholat hari ini:</span>{" "}
-                        {mockSummary.missingPrayer.length > 0 ? mockSummary.missingPrayer.join(", ") : "semua tenant aktif sudah mengirim data sholat"}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-100">Belum ada settings Lentera:</span>{" "}
-                        {mockSummary.missingLentera.length > 0 ? mockSummary.missingLentera.join(", ") : "semua tenant aktif sudah punya settings Lentera"}
+                      <div className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-amber-50">
+                        Akun admin sekolah, akun kepala sekolah, presensi global, dan setting Lentera lintas tenant belum bisa disimpulkan jujur dari API V2 saat ini.
                       </div>
                     </div>
                   </div>
@@ -325,10 +386,10 @@ export default function DashboardPage() {
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="text-sm font-semibold text-white">Aktivitas Platform Terbaru</div>
                     <div className="mt-3 space-y-2">
-                      {mockSummary.recentEvents.length > 0 ? (
-                        mockSummary.recentEvents.map((event) => (
-                          <div key={`${event.id}-${event.at}`} className="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2">
-                            <div className="text-xs text-slate-400">{new Date(event.at).toLocaleString("id-ID")}</div>
+                      {superAdminOverview.recentEvents.length > 0 ? (
+                        superAdminOverview.recentEvents.map((event) => (
+                          <div key={event.id} className="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2">
+                            <div className="text-xs text-slate-400">{formatRelativeTime(event.at)}</div>
                             <div className="mt-1 text-sm text-slate-100">{event.message}</div>
                             <div className="mt-1 text-xs text-slate-500">{event.schoolId || "global"}</div>
                           </div>
@@ -344,20 +405,49 @@ export default function DashboardPage() {
               </section>
             )}
 
-            {role !== "super_admin" && (
+            {!isSuperAdmin && (
               <section id="overview" className="scroll-mt-6 rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-xl backdrop-blur">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="text-xs font-semibold tracking-widest text-slate-400">DASHBOARD OVERVIEW</div>
-                    <div className="mt-2 text-sm font-semibold text-white">Aktivitas Sistem (Realtime)</div>
-                    <div className="mt-1 text-sm text-slate-300">Update dari Super Admin untuk sekolah Anda.</div>
+                    <div className="mt-2 text-sm font-semibold text-white">Konteks Sesi Aktif</div>
+                    <div className="mt-1 text-sm text-slate-300">
+                      Ringkasan ini menampilkan konteks sekolah aktif, role, dan kesiapan modul yang bisa Anda kelola sekarang.
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-400">1 event</div>
+                  <div className="text-xs text-slate-400">{capabilities.length} capability aktif</div>
                 </div>
-                <div className="mt-4 space-y-2">
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100">
-                    <div className="text-xs text-slate-400">{new Date().toLocaleString("id-ID")}</div>
-                    <div className="mt-1">Pembaruan sistem Unified V2 selesai diterapkan.</div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-100">
+                    <div className="text-xs font-semibold tracking-widest text-slate-400">SESI AKTIF</div>
+                    <div className="mt-3 space-y-1">
+                      <div>Role aktif: {session.activeRole || "-"}</div>
+                      <div>Sekolah aktif: {session.activeSchoolId || "-"}</div>
+                      <div>Status layanan sesi: {session.serviceStatus || "-"}</div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-100">
+                    <div className="text-xs font-semibold tracking-widest text-slate-400">STATUS MODUL</div>
+                    <div className="mt-3 space-y-2">
+                      <div>DATABASE, GAS, EduLock, dan Lentera sudah bisa diakses dari dashboard ini.</div>
+                      <div className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-amber-50">
+                        Untuk ringkasan realtime lintas modul per sekolah, backend summary masih perlu diperluas.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-100 lg:col-span-2">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-300" />
+                      <div>
+                        <div className="font-semibold text-white">Catatan Kejujuran Data</div>
+                        <div className="mt-1 text-slate-300">
+                          Dashboard admin sekolah tidak lagi menampilkan event statis. Ringkasan agregat per modul akan ditambahkan setelah endpoint summary tenant-level tersedia di backend V2.
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>

@@ -8,11 +8,8 @@ import { useSessionStore } from "@/store/session-store";
 type SchoolRow = {
   schoolId: string;
   name: string;
-  district: string;
-  npsn: string;
-  authEmail: string;
-  adminEmail: string;
-  backupEmail: string;
+  registryStatus: "active" | "inactive";
+  profileSummary: string;
   isActive: boolean;
   createdAt?: number | null;
   updatedAt?: number | null;
@@ -46,11 +43,8 @@ export default function GasSuperAdminTenantsPage() {
     return data.schools.map((s) => ({
       schoolId: s.schoolId,
       name: s.name,
-      district: "-", // Not in schema, fallback
-      npsn: "-",
-      authEmail: "-",
-      adminEmail: "-",
-      backupEmail: "-",
+      registryStatus: s.status,
+      profileSummary: "Profil tambahan sekolah seperti NPSN, kecamatan, dan email admin belum tersedia di kontrak API V2.",
       isActive: s.status === "active",
       createdAt: null,
       updatedAt: null
@@ -70,7 +64,7 @@ export default function GasSuperAdminTenantsPage() {
     const query = normalize(q).toLowerCase();
     if (!query) return rows;
     return rows.filter((r) => {
-      const hay = [r.schoolId, r.name, r.district, r.npsn, r.authEmail, r.adminEmail, r.backupEmail]
+      const hay = [r.schoolId, r.name, r.registryStatus, r.profileSummary]
         .map((x) => normalize(x).toLowerCase())
         .join(" ");
       return hay.includes(query);
@@ -137,11 +131,14 @@ export default function GasSuperAdminTenantsPage() {
               <div className="mt-1 text-sm text-slate-300">
                 Sumber data: <span className="font-semibold text-slate-200">schools</span>
               </div>
+              <div className="mt-1 text-xs text-amber-200">
+                Halaman ini hanya menampilkan field tenant yang benar-benar tersedia dari backend V2. Metadata sekolah tambahan belum dipalsukan lagi.
+              </div>
             </div>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Cari schoolId / nama / NPSN / email..."
+              placeholder="Cari schoolId / nama / status registry..."
               className="w-full sm:w-80 rounded-xl border border-slate-700/50 bg-slate-950/30 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500"
             />
           </div>
@@ -156,8 +153,8 @@ export default function GasSuperAdminTenantsPage() {
                 <tr className="text-left text-xs font-semibold tracking-widest text-slate-400">
                   <th className="px-3 py-2">SCHOOL ID</th>
                   <th className="px-3 py-2">NAMA</th>
-                  <th className="px-3 py-2">NPSN</th>
-                  <th className="px-3 py-2">KECAMATAN</th>
+                  <th className="px-3 py-2">REGISTRY</th>
+                  <th className="px-3 py-2">PROFIL DATA</th>
                   <th className="px-3 py-2">UPDATED</th>
                   <th className="px-3 py-2 text-right">STATUS</th>
                 </tr>
@@ -172,16 +169,20 @@ export default function GasSuperAdminTenantsPage() {
                     const disabled = busyId === r.schoolId;
                     return (
                       <tr key={r.schoolId} className="bg-slate-950/20 border border-slate-700/40">
-                        <td className="px-3 py-3 text-sm font-semibold text-slate-100">
-                          {r.schoolId}
-                          <div className="mt-1 text-xs text-slate-400">{r.authEmail || r.adminEmail || "-"}</div>
-                        </td>
+                        <td className="px-3 py-3 text-sm font-semibold text-slate-100">{r.schoolId}</td>
                         <td className="px-3 py-3 text-sm text-slate-100">
                           {r.name || "-"}
-                          <div className="mt-1 text-xs text-slate-400">{r.backupEmail || "-"}</div>
                         </td>
-                        <td className="px-3 py-3 text-sm text-slate-100">{r.npsn || "-"}</td>
-                        <td className="px-3 py-3 text-sm text-slate-100">{r.district || "-"}</td>
+                        <td className="px-3 py-3 text-sm text-slate-100">
+                          <span className={`inline-flex rounded-xl border px-3 py-1 text-xs font-semibold ${
+                            r.registryStatus === "active"
+                              ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
+                              : "border-red-400/30 bg-red-500/10 text-red-100"
+                          }`}>
+                            {r.registryStatus}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-sm text-slate-300">{r.profileSummary}</td>
                         <td className="px-3 py-3 text-sm text-slate-100">{formatTs(r.updatedAt || r.createdAt)}</td>
                         <td className="px-3 py-3 text-right">
                           <button

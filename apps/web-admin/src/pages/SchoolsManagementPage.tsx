@@ -4,6 +4,22 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
+function normalize(value: string | null | undefined): string {
+  return String(value ?? "").trim();
+}
+
+function schoolHasAdminLoginConfig(input: {
+  npsn?: string | null;
+  authEmail?: string | null;
+  adminEmail?: string | null;
+}) {
+  return Boolean(normalize(input.npsn) || normalize(input.authEmail) || normalize(input.adminEmail));
+}
+
+function hasOperationalRuntime(input?: { runtimeLastLoginAt?: number | null } | null) {
+  return Boolean(input?.runtimeLastLoginAt);
+}
+
 type SuperDbSection =
   | "tenants"
   | "school_admins"
@@ -18,6 +34,11 @@ type SuperDbSection =
 export default function SchoolsManagementPage() {
   const session = useAuthGuard();
   const queryClient = useQueryClient();
+
+  const invalidateSchoolRealtimeQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["schools"] });
+    queryClient.invalidateQueries({ queryKey: ["school-service-status"] });
+  };
 
   const [superSection, setSuperSection] = useState<SuperDbSection>("tenants");
   const [superSaving, setSuperSaving] = useState(false);
@@ -51,12 +72,28 @@ export default function SchoolsManagementPage() {
   });
 
   const superSchools = schoolsData?.schools || [];
-
-  // Dummy data for V2 POC to show the UI
-  const superSchoolAdmins = [
-    { loginIdentifier: "admin@smpn3.id", schoolName: "SMPN 3 PACET", schoolId: "smpn3pacet", accessActive: true, schoolActive: true, runtimeLastLoginAt: Date.now() - 86400000 },
-    { loginIdentifier: "admin@sdn1.id", schoolName: "SDN 1 MOJOSARI", schoolId: "sdn1mojosari", accessActive: false, schoolActive: true, runtimeLastLoginAt: null }
-  ];
+  const superSchoolAdmins = useMemo(
+    () =>
+      superSchools.map((school) => ({
+        loginIdentifier: school.npsn || school.authEmail || school.adminEmail || "-",
+        schoolName: school.name,
+        schoolId: school.schoolId,
+        accessActive: school.adminAccessActive !== false,
+        schoolActive: school.status === "active",
+        resetEmail: school.authEmail || school.adminEmail || "",
+        runtimeLastLoginAt: school.adminLastLoginAt ? new Date(school.adminLastLoginAt).getTime() : null,
+        runtimeMustChangePassword: school.adminMustChangePassword !== false,
+        npsn: school.npsn || ""
+      })),
+    [superSchools]
+  );
+  const schoolAdminRowBySchoolId = useMemo(() => {
+    const map = new Map<string, (typeof superSchoolAdmins)[number]>();
+    for (const row of superSchoolAdmins) {
+      map.set(normalize(row.schoolId).toLowerCase(), row);
+    }
+    return map;
+  }, [superSchoolAdmins]);
 
   const superPrincipals = [
     { username: "kepsek_smpn3", name: "Budi Santoso", schoolName: "SMPN 3 PACET", schoolId: "smpn3pacet", isActive: true, lastLoginAt: Date.now() - 3600000, deviceId: "DEV123" }
@@ -72,21 +109,30 @@ export default function SchoolsManagementPage() {
   const superStats = useMemo(() => {
     const tenantsTotal = superSchools.length;
     const tenantsEnabled = superSchools.filter((s) => s.status === "active").length;
-    const tenantsLive = tenantsEnabled > 0 ? tenantsEnabled : 0;
-    const adminsTotal = tenantsTotal;
-    const tenantsWithAdmin = tenantsTotal;
+    const tenantsLive = superSchoolAdmins.filter((row) => hasOperationalRuntime(row)).length;
+    const adminsTotal = superSchoolAdmins.length;
+    const tenantsWithAdmin = superSchoolAdmins.reduce(
+      (acc, row) =>
+        acc +
+        (schoolHasAdminLoginConfig({
+          npsn: row.npsn,
+          authEmail: row.loginIdentifier,
+          adminEmail: row.resetEmail
+        })
+          ? 1
+          : 0),
+      0
+    );
     const tenantsMissingAdmin = Math.max(0, tenantsTotal - tenantsWithAdmin);
     return { tenantsTotal, tenantsEnabled, tenantsLive, adminsTotal, tenantsWithAdmin, tenantsMissingAdmin };
-  }, [superSchools]);
+  }, [superSchoolAdmins, superSchools]);
 
   const createMutation = useMutation({
     mutationFn: async (schoolData: any) => {
-      // Mocking create school since no endpoint exists yet
-      await new Promise(r => setTimeout(r, 500));
-      return { success: true };
+      return api.updateSchoolSettings(session!.sessionId, schoolData.schoolId, schoolData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schools"] });
+      invalidateSchoolRealtimeQueries();
       setStatus({ type: "success", text: "Sekolah berhasil disimpan." });
       setSuperSchoolForm({
         schoolId: "",
@@ -108,6 +154,68 @@ export default function SchoolsManagementPage() {
     },
   });
 
+  const toggleAdminLoginMutation = useMutation({
+    mutationFn: async ({ schoolId, nextActive }: { schoolId: string; nextActive: boolean }) => {
+      const current = superSchools.find((item) => item.schoolId === schoolId);
+      if (!current) throw new Error("Data sekolah tidak ditemukan.");
+      return api.updateSchoolSettings(session!.sessionId, schoolId, {
+        name: current.name,
+        status: current.status,
+        district: current.district || "",
+        npsn: current.npsn || "",
+        authEmail: current.authEmail || "",
+        adminEmail: current.adminEmail || "",
+        backupEmail: current.backupEmail || "",
+        adminAccessActive: nextActive
+      });
+    },
+    onSuccess: (_, variables) => {
+      invalidateSchoolRealtimeQueries();
+      setStatus({
+        type: "success",
+        text: `Login admin sekolah ${variables.nextActive ? "dibuka" : "ditutup"}.`
+      });
+    },
+    onError: (error: any) => {
+      setStatus({ type: "error", text: `Gagal update akses login: ${error.message}` });
+    },
+    onSettled: () => {
+      setSuperSaving(false);
+      setTimeout(() => setStatus({ type: "", text: "" }), 3000);
+    }
+  });
+
+  const toggleTenantStatusMutation = useMutation({
+    mutationFn: async ({ schoolId, nextStatus }: { schoolId: string; nextStatus: "active" | "inactive" }) => {
+      const current = superSchools.find((item) => item.schoolId === schoolId);
+      if (!current) throw new Error("Data sekolah tidak ditemukan.");
+      return api.updateSchoolSettings(session!.sessionId, schoolId, {
+        name: current.name,
+        status: nextStatus,
+        district: current.district || "",
+        npsn: current.npsn || "",
+        authEmail: current.authEmail || "",
+        adminEmail: current.adminEmail || "",
+        backupEmail: current.backupEmail || "",
+        adminAccessActive: current.adminAccessActive !== false
+      });
+    },
+    onSuccess: (_, variables) => {
+      invalidateSchoolRealtimeQueries();
+      setStatus({
+        type: "success",
+        text: `Tenant sekolah ${variables.nextStatus === "active" ? "dibuka" : "ditutup"}.`
+      });
+    },
+    onError: (error: any) => {
+      setStatus({ type: "error", text: `Gagal update tenant: ${error.message}` });
+    },
+    onSettled: () => {
+      setSuperSaving(false);
+      setTimeout(() => setStatus({ type: "", text: "" }), 3000);
+    }
+  });
+
   const saveSuperSchool = () => {
     if (!superSchoolForm.schoolId) {
       setStatus({ type: "error", text: "School ID wajib diisi." });
@@ -118,6 +226,13 @@ export default function SchoolsManagementPage() {
     createMutation.mutate({
       schoolId: superSchoolForm.schoolId,
       name: superSchoolForm.name,
+      status: superSchoolForm.isActive ? "active" : "inactive",
+      district: superSchoolForm.district,
+      npsn: superSchoolForm.npsn,
+      authEmail: superSchoolForm.authEmail,
+      adminEmail: superSchoolForm.adminEmail,
+      backupEmail: superSchoolForm.backupEmail,
+      adminAccessActive: true
     });
   };
 
@@ -405,10 +520,10 @@ export default function SchoolsManagementPage() {
                         superSchools.map((s) => (
                           <tr key={s.schoolId} className="hover:bg-white/5">
                             <td className="px-4 py-3">
-                              <div className="text-2xl font-bold tracking-widest text-indigo-300">{(s as any).npsn || "-"}</div>
-                              <div className="mt-1 text-xs text-slate-400">Status: {s.status}</div>
+                              <div className="font-semibold text-white">{s.name || "-"}</div>
+                              <div className="text-xs text-slate-400">{s.schoolId}</div>
                             </td>
-                            <td className="px-4 py-3 text-slate-200">{(s as any).npsn || "-"}</td>
+                            <td className="px-4 py-3 text-slate-200">{s.npsn || "-"}</td>
                             <td className="px-4 py-3">
                               <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-slate-700/80 text-slate-100 ring-1 ring-slate-500/30">
                                 Terdaftar
@@ -422,9 +537,39 @@ export default function SchoolsManagementPage() {
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-400/20">
-                                Login Siap
-                              </span>
+                              {(() => {
+                                const adminRow = schoolAdminRowBySchoolId.get(normalize(s.schoolId).toLowerCase());
+                                const ready = adminRow
+                                  ? schoolHasAdminLoginConfig({
+                                      npsn: adminRow.npsn,
+                                      authEmail: adminRow.loginIdentifier,
+                                      adminEmail: adminRow.resetEmail
+                                    })
+                                  : false;
+                                const live = hasOperationalRuntime(adminRow);
+                                return (
+                                  <>
+                                    <span
+                                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                        ready
+                                          ? "bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-400/20"
+                                          : "bg-yellow-500/10 text-yellow-100 ring-1 ring-yellow-400/20"
+                                      }`}
+                                    >
+                                      {ready ? "Login Dibuka" : "Login Belum Siap"}
+                                    </span>
+                                    <span
+                                      className={`ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                        live
+                                          ? "bg-cyan-500/10 text-cyan-100 ring-1 ring-cyan-400/20"
+                                          : "bg-slate-700/80 text-slate-100 ring-1 ring-slate-500/30"
+                                      }`}
+                                    >
+                                      {live ? "Live" : "Belum Live"}
+                                    </span>
+                                  </>
+                                );
+                              })()}
                             </td>
                             <td className="px-4 py-3 text-right space-x-2">
                               <button
@@ -433,17 +578,31 @@ export default function SchoolsManagementPage() {
                                   setSuperSchoolForm({
                                     schoolId: s.schoolId,
                                     name: s.name,
-                                    district: (s as any).district || "",
-                                    npsn: (s as any).npsn || "",
-                                    authEmail: "",
-                                    adminEmail: "",
-                                    backupEmail: "",
+                                    district: s.district || "",
+                                    npsn: s.npsn || "",
+                                    authEmail: s.authEmail || "",
+                                    adminEmail: s.adminEmail || "",
+                                    backupEmail: s.backupEmail || "",
                                     isActive: s.status === "active",
                                   })
                                 }
                                 className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10 transition"
                               >
                                 Edit
+                              </button>
+                              <button
+                                type="button"
+                                disabled={superSaving || toggleTenantStatusMutation.isPending}
+                                onClick={() => {
+                                  setSuperSaving(true);
+                                  toggleTenantStatusMutation.mutate({
+                                    schoolId: s.schoolId,
+                                    nextStatus: s.status === "active" ? "inactive" : "active"
+                                  });
+                                }}
+                                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10 transition disabled:opacity-60"
+                              >
+                                {s.status === "active" ? "Tutup Tenant" : "Buka Tenant"}
                               </button>
                             </td>
                           </tr>
@@ -476,11 +635,17 @@ export default function SchoolsManagementPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/10">
-                    {superSchoolAdmins.map((a, i) => (
-                      <tr key={i} className="hover:bg-white/5">
+                    {superSchoolAdmins.map((a) => (
+                      <tr key={a.schoolId} className="hover:bg-white/5">
                         <td className="px-4 py-3">
                           <div className="font-semibold text-white">{a.loginIdentifier}</div>
-                          <div className="text-xs text-slate-400">Login awal</div>
+                          <div className="text-xs text-slate-400">
+                            {a.resetEmail
+                              ? `Reset via ${a.resetEmail}`
+                              : a.npsn
+                                ? `Login awal: NPSN ${a.npsn} / admin123`
+                                : "Lengkapi NPSN atau email admin"}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-slate-200">{a.schoolName}</div>
@@ -490,12 +655,42 @@ export default function SchoolsManagementPage() {
                            {a.runtimeLastLoginAt ? new Date(a.runtimeLastLoginAt).toLocaleString("id-ID") : "-"}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${a.accessActive ? 'bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-400/20' : 'bg-red-500/10 text-red-100 ring-1 ring-red-400/20'}`}>
-                            {a.accessActive ? "Login Dibuka" : "Login Ditutup"}
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${a.accessActive && a.schoolActive ? 'bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-400/20' : 'bg-red-500/10 text-red-100 ring-1 ring-red-400/20'}`}>
+                            {a.accessActive && a.schoolActive ? "Login Dibuka" : "Login Ditutup"}
                           </span>
+                          {!a.schoolActive && (
+                            <span className="ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-slate-700/80 text-slate-100 ring-1 ring-slate-500/30">
+                              Tenant Ditutup
+                            </span>
+                          )}
+                          {hasOperationalRuntime(a) ? (
+                            <span className="ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-cyan-500/10 text-cyan-100 ring-1 ring-cyan-400/20">
+                              Live
+                            </span>
+                          ) : (
+                            <span className="ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-slate-700/80 text-slate-100 ring-1 ring-slate-500/30">
+                              Belum Live
+                            </span>
+                          )}
+                          {a.runtimeMustChangePassword && (
+                            <span className="ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-yellow-500/10 text-yellow-100 ring-1 ring-yellow-400/20">
+                              Wajib ganti
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right space-x-2">
-                          <button type="button" className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:bg-white/10 transition">
+                          <button
+                            type="button"
+                            disabled={superSaving || toggleAdminLoginMutation.isPending}
+                            onClick={() => {
+                              setSuperSaving(true);
+                              toggleAdminLoginMutation.mutate({
+                                schoolId: a.schoolId,
+                                nextActive: !a.accessActive
+                              });
+                            }}
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:bg-white/10 transition disabled:opacity-60"
+                          >
                             {a.accessActive ? "Tutup Login" : "Buka Login"}
                           </button>
                         </td>

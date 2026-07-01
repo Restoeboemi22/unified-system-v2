@@ -8,6 +8,14 @@ import { useSessionStore } from "@/store/session-store";
 import type { Membership } from "@/types/api";
 import { Eye, EyeOff } from "lucide-react";
 
+function normalize(value: string): string {
+  return String(value || "").trim();
+}
+
+function looksLikeNpsnLogin(value: string): boolean {
+  return /^\d{6,20}$/.test(normalize(value));
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -24,6 +32,10 @@ export default function LoginPage() {
     onSuccess: (data) => {
       setAuth(data);
       setPendingMemberships(data.memberships);
+      if (data.session.requiresPasswordChange && data.session.activeRole === "admin") {
+        navigate("/edulock/admin", { replace: true });
+        return;
+      }
       if (data.session.activeSchoolId || data.memberships.length === 0 || data.memberships.length === 1) {
         navigate("/dashboard", { replace: true });
       }
@@ -52,6 +64,7 @@ export default function LoginPage() {
     e.preventDefault();
     setFirebaseError(null);
     setIsLoggingIn(true);
+    const loginIdentifier = normalize(email);
 
     try {
       if (import.meta.env.DEV) {
@@ -69,8 +82,16 @@ export default function LoginPage() {
         }
       }
 
+      if (looksLikeNpsnLogin(loginIdentifier)) {
+        loginMutation.mutate({
+          provider: "firebase",
+          idToken: `NPSN_ADMIN::${loginIdentifier}::${password}`
+        });
+        return;
+      }
+
       // OPSI B: Autentikasi sungguhan menggunakan Firebase Email/Password
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, loginIdentifier, password);
       const idToken = await userCredential.user.getIdToken();
       loginMutation.mutate({ provider: "firebase", idToken });
     } catch (error: any) {
@@ -132,7 +153,7 @@ export default function LoginPage() {
                 type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Contoh: admin@sekolah.sch.id"
+                placeholder="Contoh: 20555784 atau admin@sekolah.sch.id"
                 required
                 className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition-colors focus:border-blue-500 focus:bg-slate-900"
               />

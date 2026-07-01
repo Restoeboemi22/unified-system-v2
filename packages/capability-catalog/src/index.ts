@@ -50,6 +50,19 @@ const ROLE_CAPABILITIES: Record<string, Capability[]> = {
     CAPABILITIES.academicPeriodManage,
     CAPABILITIES.academicDirectoryRead
   ],
+  super_admin: [
+    CAPABILITIES.adminRead,
+    CAPABILITIES.schoolRead,
+    CAPABILITIES.schoolManage,
+    CAPABILITIES.serviceStatusManage,
+    CAPABILITIES.studentManage,
+    CAPABILITIES.staffManage,
+    CAPABILITIES.teacherManage,
+    CAPABILITIES.principalManage,
+    CAPABILITIES.classroomManage,
+    CAPABILITIES.academicPeriodManage,
+    CAPABILITIES.academicDirectoryRead
+  ],
   principal: [
     CAPABILITIES.principalRead,
     CAPABILITIES.schoolRead,

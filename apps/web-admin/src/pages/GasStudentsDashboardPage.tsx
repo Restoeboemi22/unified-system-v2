@@ -30,13 +30,19 @@ export default function GasStudentsDashboardPage() {
       id: s.studentId,
       nisn: s.studentNumber,
       name: s.fullName,
-      gender: "L", // Default for now since API doesn't return gender
-      class: "VII-A", // Default for now since API doesn't return class
+      gender: "",
+      class: "",
       email: ""
     }));
   }, [studentsResponse]);
 
+  const hasClassAssignment = useMemo(
+    () => students.some((student) => String(student.class || "").trim().length > 0),
+    [students]
+  );
+
   const gradeClassOptions = useMemo(() => {
+    if (!hasClassAssignment) return [];
     const normalize = (value: unknown) => String(value || "").trim().toUpperCase();
     return Array.from(new Set(students
       .map(s => s.class || "")
@@ -44,13 +50,16 @@ export default function GasStudentsDashboardPage() {
       .map(c => normalize(c))
       .filter(Boolean)
     ));
-  }, [students, selectedGrade]);
+  }, [hasClassAssignment, students, selectedGrade]);
 
   useEffect(() => {
     setSelectedClassName("ALL");
   }, [selectedGrade]);
 
   const filteredStudents = useMemo(() => {
+    if (!hasClassAssignment) {
+      return students.slice().sort((a, b) => a.name.localeCompare(b.name));
+    }
     return students
       .filter(student => {
         const studentClass = student.class || "";
@@ -59,7 +68,7 @@ export default function GasStudentsDashboardPage() {
         return matchesGrade && matchesClass;
       })
       .sort((a, b) => (a.class || "").localeCompare(b.class || "") || a.name.localeCompare(b.name));
-  }, [students, selectedGrade, selectedClassName]);
+  }, [hasClassAssignment, students, selectedGrade, selectedClassName]);
 
   const handleSync = async () => {
     await refetch();
@@ -67,7 +76,9 @@ export default function GasStudentsDashboardPage() {
     setTimeout(() => setSyncMessage(null), 3000);
   };
 
-  const totalStudentsInGrade = students.filter(s => (s.class || "").startsWith(selectedGrade)).length;
+  const totalStudentsInGrade = hasClassAssignment
+    ? students.filter(s => (s.class || "").startsWith(selectedGrade)).length
+    : students.length;
   const isSyncing = isLoading || isRefetching;
 
   return (
@@ -109,10 +120,18 @@ export default function GasStudentsDashboardPage() {
           </div>
         )}
 
+        {!hasClassAssignment ? (
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
+            API siswa V2 saat ini belum mengirim gender dan penempatan kelas. Halaman ini hanya menampilkan data siswa nyata yang tersedia tanpa mengarang kelas/gender seperti sebelumnya.
+          </div>
+        ) : null}
+
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="rounded-3xl bg-slate-900/60 p-6 shadow-xl border border-white/10 backdrop-blur-xl">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Siswa (Kelas {selectedGrade})</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              {hasClassAssignment ? `Total Siswa (Kelas ${selectedGrade})` : "Total Siswa Tersedia"}
+            </p>
             <p className="text-3xl font-black text-slate-100 mt-2">{totalStudentsInGrade}</p>
           </div>
           <div className="rounded-3xl bg-slate-900/60 p-6 shadow-xl border border-white/10 backdrop-blur-xl">
@@ -133,11 +152,12 @@ export default function GasStudentsDashboardPage() {
               <button
                 key={grade}
                 onClick={() => setSelectedGrade(grade)}
+                disabled={!hasClassAssignment}
                 className={`rounded-2xl px-6 py-3 text-sm font-bold transition-all duration-200 shadow-sm ${
                   selectedGrade === grade
                     ? "bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg shadow-blue-500/30 border-transparent"
                     : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 border border-slate-700/50"
-                }`}
+                } ${!hasClassAssignment ? "cursor-not-allowed opacity-50" : ""}`}
               >
                 Kelas {grade === "VII" ? "7" : grade === "VIII" ? "8" : "9"}
               </button>
@@ -151,11 +171,12 @@ export default function GasStudentsDashboardPage() {
             </span>
             <button
               onClick={() => setSelectedClassName("ALL")}
+              disabled={!hasClassAssignment}
               className={`rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 border ${
                 selectedClassName === "ALL"
                   ? "bg-gradient-to-r from-green-600 to-emerald-700 border-transparent text-white shadow-lg shadow-green-500/30"
                   : "bg-slate-800/60 border-slate-700/50 text-slate-300 hover:bg-slate-800"
-              }`}
+              } ${!hasClassAssignment ? "cursor-not-allowed opacity-50" : ""}`}
             >
               Semua Kelas
             </button>

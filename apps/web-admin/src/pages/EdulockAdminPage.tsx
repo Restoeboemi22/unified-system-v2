@@ -1,6 +1,7 @@
 "use client";
 
 import { useSessionStore } from "@/store/session-store";
+import { api } from "@/lib/api";
 
 
 import { useEffect, useMemo, useState } from "react";
@@ -8,7 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import {
   onValue, ref, remove, set, update, push, get, orderByChild, equalTo,
-  query, signOut, updatePassword, database, edulockDb, edulockAuth
+  query, signOut, database, edulockDb, edulockAuth
 } from "@/lib/mockFirebaseAdapter";
 
 
@@ -95,13 +96,17 @@ interface ViolationRow {
 }
 
 export default function EduLockSchoolAdminPage() {
-    const session = useSessionStore((state) => state.session);
+  const session = useSessionStore((state) => state.session);
+  const setAuth = useSessionStore((state) => state.setAuth);
   const navigate = useNavigate();
+  const inferredNpsn = String(session?.identityId || "").startsWith("idn_school_admin_")
+    ? String(session?.identityId || "").slice("idn_school_admin_".length)
+    : "";
   const profile = {
-    schoolId: session?.activeSchoolId || "SMPN 3 PACET",
-    schoolName: session?.activeSchoolId || "SMPN 3 PACET",
-    npsn: "12345678",
-    mustChangePassword: false
+    schoolId: session?.activeSchoolId || "",
+    schoolName: session?.activeSchoolId || "",
+    npsn: inferredNpsn,
+    mustChangePassword: Boolean(session?.requiresPasswordChange)
   };
 
 
@@ -734,16 +739,20 @@ export default function EduLockSchoolAdminPage() {
 
     setLoading(true);
     try {
-      if (!edulockAuth.currentUser) throw new Error("User tidak terautentikasi.");
-      await updatePassword(edulockAuth.currentUser, forcedPassword);
-      const nowTs = Date.now();
-      await update(ref(edulockDb, `admin_profiles/${edulockAuth.currentUser.uid}`), {
-        mustChangePassword: false,
-        passwordChangedAt: nowTs,
-        updatedAt: nowTs,
+      if (!session?.sessionId || !session.activeSchoolId) {
+        throw new Error("Session admin sekolah belum tersedia.");
+      }
+      await api.changeSchoolAdminPassword(session.sessionId, session.activeSchoolId, {
+        newPassword: forcedPassword
       });
       setForcedPassword("");
       setMustChangeGate(false);
+      setAuth({
+        session: {
+          ...session,
+          requiresPasswordChange: false
+        }
+      });
       setStatusMessage({ type: "success", text: "Password berhasil diubah. Silakan lanjutkan penggunaan dashboard." });
       setTimeout(() => setStatusMessage({ type: "", text: "" }), 3000);
     } catch (e: any) {
@@ -763,15 +772,19 @@ export default function EduLockSchoolAdminPage() {
 
     setLoading(true);
     try {
-      if (!edulockAuth.currentUser) throw new Error("User tidak terautentikasi.");
-      await updatePassword(edulockAuth.currentUser, newPassword);
-      const nowTs = Date.now();
-      await update(ref(edulockDb, `admin_profiles/${edulockAuth.currentUser.uid}`), {
-        mustChangePassword: false,
-        passwordChangedAt: nowTs,
-        updatedAt: nowTs,
+      if (!session?.sessionId || !session.activeSchoolId) {
+        throw new Error("Session admin sekolah belum tersedia.");
+      }
+      await api.changeSchoolAdminPassword(session.sessionId, session.activeSchoolId, {
+        newPassword
       });
       setNewPassword("");
+      setAuth({
+        session: {
+          ...session,
+          requiresPasswordChange: false
+        }
+      });
       setStatusMessage({ type: "success", text: "Password berhasil diubah." });
       setTimeout(() => setStatusMessage({ type: "", text: "" }), 3000);
     } catch (e: any) {

@@ -6,14 +6,20 @@ import { api } from "@/lib/api";
 import { useSessionStore } from "@/store/session-store";
 
 type BroadcastTarget = { mode: "ALL" } | { mode: "SCHOOL"; schoolId: string };
-type BroadcastRow = { id: string; title: string; message: string; target: BroadcastTarget; createdAt: number | null; createdBy?: string; };
+type BroadcastRow = {
+  id: string;
+  title: string;
+  message: string;
+  target: BroadcastTarget;
+  createdAt: number | null;
+  createdBy?: string;
+};
 
 export default function GasBroadcastPage() {
   const sessionId = useSessionStore((state) => state.session?.sessionId);
   const queryClient = useQueryClient();
   const [errorMsg, setErrorMsg] = useState("");
   const [busyId, setBusyId] = useState("");
-  const [error, setError] = useState("");
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [targetMode, setTargetMode] = useState<"ALL" | "SCHOOL">("ALL");
@@ -33,8 +39,30 @@ export default function GasBroadcastPage() {
     },
     enabled: !!sessionId
   });
-  
-  const rows: BroadcastRow[] = data?.broadcasts || [];
+
+  const { data: schoolsData } = useQuery({
+    queryKey: ["gas-broadcast-schools"],
+    queryFn: () => {
+      if (!sessionId) throw new Error("Session not found");
+      return api.getSchools(sessionId);
+    },
+    enabled: !!sessionId
+  });
+
+  const rows: BroadcastRow[] = useMemo(() => {
+    const rawItems = data?.broadcasts ?? [];
+    return rawItems.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      message: item.message,
+      target:
+        item.target?.mode === "SCHOOL" && item.target?.schoolId
+          ? { mode: "SCHOOL", schoolId: String(item.target.schoolId) }
+          : { mode: "ALL" },
+      createdAt: typeof item.createdAt === "number" ? item.createdAt : null,
+      createdBy: item.createdBy,
+    }));
+  }, [data?.broadcasts]);
 
   const createMutation = useMutation({
     mutationFn: async (newBc: any) => {
@@ -42,10 +70,27 @@ export default function GasBroadcastPage() {
       return api.createGasBroadcast(sessionId, newBc);
     },
     onSuccess: () => {
+      setErrorMsg("");
       queryClient.invalidateQueries({ queryKey: ["gas-broadcasts"] });
+      queryClient.invalidateQueries({ queryKey: ["gas-audit-logs"] });
       setTitle(""); setMessage(""); setTargetSchoolId(""); setTargetMode("ALL");
     },
-    onError: (e) => setErrorMsg(String(e))
+    onError: (e) => setErrorMsg(e instanceof Error ? e.message : String(e))
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (!sessionId) throw new Error("Session not found");
+      return api.deleteGasBroadcast(sessionId, id);
+    },
+    onMutate: (id) => setBusyId(id),
+    onSettled: () => setBusyId(""),
+    onSuccess: () => {
+      setErrorMsg("");
+      queryClient.invalidateQueries({ queryKey: ["gas-broadcasts"] });
+      queryClient.invalidateQueries({ queryKey: ["gas-audit-logs"] });
+    },
+    onError: (e) => setErrorMsg(e instanceof Error ? e.message : String(e))
   });
 
   const createBroadcast = () => {
@@ -60,12 +105,13 @@ export default function GasBroadcastPage() {
     createMutation.mutate({
       title: title.trim(),
       message: message.trim(),
-      targetAudience: targetMode === "SCHOOL" ? targetSchoolId : "semua"
+      target
     });
   };
 
-  const deleteBroadcast = async (id: string) => {
-    // mock delete
+  const deleteBroadcast = (id: string) => {
+    setErrorMsg("");
+    deleteMutation.mutate(id);
   };
 
   return (
@@ -89,7 +135,7 @@ export default function GasBroadcastPage() {
               <div className="text-sm font-semibold text-slate-100">Buat Antrian Broadcast</div>
               <div className="mt-1 text-sm text-slate-300">Sumber data: <span className="font-semibold text-slate-200">gas/broadcasts</span></div>
               <div className="mt-1 text-xs text-slate-400">Target: {previewTarget}</div>
-              <div className="mt-1 text-xs text-amber-200">Record yang dibuat di sini adalah antrian broadcast, bukan jaminan notifikasi sudah ter-deliver ke seluruh tenant.</div>
+              <div className="mt-1 text-xs text-amber-200">Record yang dibuat di sini sekarang tersimpan di backend GAS V2 dan ikut tercatat ke audit feed, tetapi delivery notifikasi ke tenant tetap bergantung pada worker/channel terpisah.</div>
             </div>
           </div>
 
@@ -107,9 +153,19 @@ export default function GasBroadcastPage() {
                   <option value="ALL">ALL</option>
                   <option value="SCHOOL">SCHOOL</option>
                 </select>
-                <input value={targetSchoolId} onChange={(e) => setTargetSchoolId(e.target.value)} disabled={targetMode !== "SCHOOL"}
-                  className={`w-full rounded-xl border border-slate-700/50 bg-slate-950/30 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 ${targetMode !== "SCHOOL" ? "opacity-60 cursor-not-allowed" : ""}`}
-                  placeholder="schoolId" />
+                <select
+                  value={targetSchoolId}
+                  onChange={(e) => setTargetSchoolId(e.target.value)}
+                  disabled={targetMode !== "SCHOOL"}
+                  className={`w-full rounded-xl border border-slate-700/50 bg-slate-950/30 px-4 py-2 text-sm text-slate-100 ${targetMode !== "SCHOOL" ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  <option value="">Pilih schoolId</option>
+                  {(schoolsData?.schools ?? []).map((school) => (
+                    <option key={school.schoolId} value={school.schoolId}>
+                      {school.schoolId} - {school.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -137,7 +193,7 @@ export default function GasBroadcastPage() {
                       <div className="text-sm font-semibold text-slate-100">{b.title || "-"}</div>
                       <div className="mt-1 text-sm text-slate-300 whitespace-pre-wrap">{b.message || "-"}</div>
                       <div className="mt-2 text-xs text-slate-400">
-                        Target: {b.target.mode === "ALL" ? "ALL" : `SCHOOL: ${(b.target as any).schoolId || "-"}`} ·{" "}
+                        Target: {b.target.mode === "ALL" ? "ALL" : `SCHOOL: ${b.target.schoolId || "-"}`} ·{" "}
                         {b.createdAt ? new Date(b.createdAt).toLocaleString("id-ID") : "-"} · {b.createdBy || "-"}
                       </div>
                     </div>

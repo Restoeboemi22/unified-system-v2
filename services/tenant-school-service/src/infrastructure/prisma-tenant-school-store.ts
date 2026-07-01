@@ -6,6 +6,18 @@ export type SchoolRecord = {
   schoolId: string;
   name: string;
   status: "active" | "inactive";
+  district?: string | null;
+  npsn?: string | null;
+  authEmail?: string | null;
+  adminEmail?: string | null;
+  backupEmail?: string | null;
+  adminAccessActive: boolean;
+  adminPasswordHash?: string | null;
+  adminMustChangePassword: boolean;
+  adminLastLoginAt?: string | null;
+  adminPasswordChangedAt?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type MembershipRecord = {
@@ -56,6 +68,18 @@ export class PrismaTenantSchoolStore {
       schoolId: school.schoolId,
       name: school.name,
       status: school.status as any,
+      district: school.district,
+      npsn: school.npsn,
+      authEmail: school.authEmail,
+      adminEmail: school.adminEmail,
+      backupEmail: school.backupEmail,
+      adminAccessActive: school.adminAccessActive,
+      adminPasswordHash: school.adminPasswordHash,
+      adminMustChangePassword: school.adminMustChangePassword,
+      adminLastLoginAt: school.adminLastLoginAt?.toISOString() ?? null,
+      adminPasswordChangedAt: school.adminPasswordChangedAt?.toISOString() ?? null,
+      latitude: school.latitude,
+      longitude: school.longitude,
     };
   }
 
@@ -67,6 +91,18 @@ export class PrismaTenantSchoolStore {
       schoolId: school.schoolId,
       name: school.name,
       status: school.status as any,
+      district: school.district,
+      npsn: school.npsn,
+      authEmail: school.authEmail,
+      adminEmail: school.adminEmail,
+      backupEmail: school.backupEmail,
+      adminAccessActive: school.adminAccessActive,
+      adminPasswordHash: school.adminPasswordHash,
+      adminMustChangePassword: school.adminMustChangePassword,
+      adminLastLoginAt: school.adminLastLoginAt?.toISOString() ?? null,
+      adminPasswordChangedAt: school.adminPasswordChangedAt?.toISOString() ?? null,
+      latitude: school.latitude,
+      longitude: school.longitude
     }));
   }
 
@@ -75,14 +111,66 @@ export class PrismaTenantSchoolStore {
       where: { schoolId: school.schoolId },
       update: {
         name: school.name,
-        status: school.status
+        status: school.status,
+        district: school.district ?? null,
+        npsn: school.npsn ?? null,
+        authEmail: school.authEmail ?? null,
+        adminEmail: school.adminEmail ?? null,
+        backupEmail: school.backupEmail ?? null,
+        adminAccessActive: school.adminAccessActive,
+        adminPasswordHash: school.adminPasswordHash ?? null,
+        adminMustChangePassword: school.adminMustChangePassword,
+        adminLastLoginAt: school.adminLastLoginAt ? new Date(school.adminLastLoginAt) : null,
+        adminPasswordChangedAt: school.adminPasswordChangedAt
+          ? new Date(school.adminPasswordChangedAt)
+          : null,
+        latitude: school.latitude ?? null,
+        longitude: school.longitude ?? null
       },
       create: {
         schoolId: school.schoolId,
         name: school.name,
-        status: school.status
+        status: school.status,
+        district: school.district ?? null,
+        npsn: school.npsn ?? null,
+        authEmail: school.authEmail ?? null,
+        adminEmail: school.adminEmail ?? null,
+        backupEmail: school.backupEmail ?? null,
+        adminAccessActive: school.adminAccessActive,
+        adminPasswordHash: school.adminPasswordHash ?? null,
+        adminMustChangePassword: school.adminMustChangePassword,
+        adminLastLoginAt: school.adminLastLoginAt ? new Date(school.adminLastLoginAt) : null,
+        adminPasswordChangedAt: school.adminPasswordChangedAt
+          ? new Date(school.adminPasswordChangedAt)
+          : null,
+        latitude: school.latitude ?? null,
+        longitude: school.longitude ?? null
       }
     });
+  }
+
+  async getSchoolByNpsn(npsn: string): Promise<SchoolRecord | undefined> {
+    const school = await this.prisma.school.findUnique({
+      where: { npsn }
+    });
+    if (!school) return undefined;
+    return {
+      schoolId: school.schoolId,
+      name: school.name,
+      status: school.status as any,
+      district: school.district,
+      npsn: school.npsn,
+      authEmail: school.authEmail,
+      adminEmail: school.adminEmail,
+      backupEmail: school.backupEmail,
+      adminAccessActive: school.adminAccessActive,
+      adminPasswordHash: school.adminPasswordHash,
+      adminMustChangePassword: school.adminMustChangePassword,
+      adminLastLoginAt: school.adminLastLoginAt?.toISOString() ?? null,
+      adminPasswordChangedAt: school.adminPasswordChangedAt?.toISOString() ?? null,
+      latitude: school.latitude,
+      longitude: school.longitude
+    };
   }
 
   async getServiceStatus(schoolId: string): Promise<ServiceStatusRecord | undefined> {

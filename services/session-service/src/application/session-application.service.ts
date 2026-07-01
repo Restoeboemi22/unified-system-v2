@@ -78,6 +78,7 @@ export class SessionApplicationService {
           activeSchoolId: principal.activeSchoolId,
           activeRole: principal.activeRole,
           serviceStatus: principal.serviceStatus,
+          requiresPasswordChange: principal.requiresPasswordChange ?? false,
           expiresAt
         },
         capabilities: this.computeCapabilities(principal.activeRole, principal.serviceStatus)
@@ -120,6 +121,7 @@ export class SessionApplicationService {
         activeSchoolId: principal.activeSchoolId,
         activeRole: principal.activeRole,
         serviceStatus: principal.serviceStatus,
+          requiresPasswordChange: principal.requiresPasswordChange ?? false,
         expiresAt: updated.expiresAt
       },
       capabilities: this.computeCapabilities(principal.activeRole, principal.serviceStatus)
@@ -143,6 +145,7 @@ export class SessionApplicationService {
       activeRole: string;
       activeSchoolId: string;
       serviceStatus: "active" | "limited" | "disabled";
+      requiresPasswordChange?: boolean;
       memberships: GetSessionMeResponse["memberships"];
     }
   ): GetSessionMeResponse {
@@ -154,6 +157,7 @@ export class SessionApplicationService {
         activeSchoolId: principal.activeSchoolId,
         activeRole: principal.activeRole,
         serviceStatus: principal.serviceStatus,
+        requiresPasswordChange: principal.requiresPasswordChange ?? false,
         expiresAt: record.expiresAt
       },
       memberships: principal.memberships,

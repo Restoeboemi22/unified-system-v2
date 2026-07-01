@@ -1,6 +1,10 @@
-import { Controller, Get, Header, HttpException, Param, Patch, Post, Body, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Header, HttpException, Param, Patch, Post, Put, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { createApiErrorResponse } from "@unified/packages-shared-kernel";
+import { CAPABILITIES } from "@unified/packages-capability-catalog";
+import { z } from "zod";
+import { GasApplicationService } from "../application/gas-application.service";
+import { PolicyClient } from "../infrastructure/policy-client";
 
 function parseAuthorizationHeader(req: Request): string | null {
   const header = req.header("authorization");
@@ -8,104 +12,217 @@ function parseAuthorizationHeader(req: Request): string | null {
   return header;
 }
 
-// In-memory mock data
-const syncJobs: any[] = [
-  { id: "job-001", type: "master_data", status: "DONE", schoolId: "smpn_1_ngawi", note: "Sinkronisasi awal TA 2025/2026", createdAt: Date.now() - 86400000 * 3 },
-  { id: "job-002", type: "attendance", status: "QUEUED", schoolId: "sman_2_ngawi", createdAt: Date.now() - 3600000 },
-];
+function badRequest(error: z.ZodError): never {
+  throw new HttpException(
+    createApiErrorResponse("VALIDATION_ERROR", "Request validation error", {
+      issues: error.issues,
+    }),
+    400
+  );
+}
 
-const broadcasts: any[] = [
-  { id: "bc-001", title: "Maintenance Server 2025", message: "Server akan mati jam 02.00", targetAudience: "semua", status: "SENT", createdAt: Date.now() - 86400000 },
-];
+const SyncJobCreateSchema = z.object({
+  type: z.enum(["master_data", "attendance", "users"]),
+  schoolId: z.string().trim().optional(),
+  note: z.string().trim().optional(),
+});
 
-const supportTickets: any[] = [
-  { id: "tkt-001", subject: "Lupa Password", description: "Saya tidak bisa login", senderEmail: "guru@sekolah.com", schoolId: "smpn_1_ngawi", status: "OPEN", createdAt: Date.now() - 3600000 },
-];
+const SyncJobStatusSchema = z.object({
+  status: z.enum(["QUEUED", "RUNNING", "DONE", "FAILED"]),
+});
 
-const auditLogs: any[] = [
-  { id: "adt-001", action: "UPDATE_STATUS", entity: "SCHOOL", entityId: "smpn_1_ngawi", performedBy: "superadmin@edulock.id", details: '{"from":"active","to":"limited"}', createdAt: Date.now() - 3600000 },
-];
+const BroadcastTargetSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("ALL") }),
+  z.object({ mode: z.literal("SCHOOL"), schoolId: z.string().trim().min(1) }),
+]);
+
+const BroadcastCreateSchema = z.object({
+  title: z.string().trim().min(1),
+  message: z.string().trim().min(1),
+  target: BroadcastTargetSchema,
+});
+
+const SupportCreateSchema = z.object({
+  type: z.enum(["clear_cache", "rerun_sync", "reset_access"]),
+  schoolId: z.string().trim().min(1),
+  reason: z.string().trim().optional(),
+});
+
+const SupportStatusSchema = z.object({
+  status: z.enum(["OPEN", "DONE", "CANCELLED"]),
+});
+
+const GlobalConfigSchema = z.record(z.any());
 
 @Controller("/v1/gas")
 export class GasMockController {
-  
+  constructor(
+    private readonly app: GasApplicationService,
+    private readonly policyClient: PolicyClient
+  ) {}
+
   // -- Sync Jobs --
   @Get("/sync-jobs")
   @Header("cache-control", "no-store")
   async getSyncJobs(@Req() req: Request) {
-    if (!parseAuthorizationHeader(req)) throw new HttpException(createApiErrorResponse("UNAUTHENTICATED", "Session tidak valid"), 401);
-    return { jobs: syncJobs };
+    const authorization = this.requireAuthorization(req);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: {},
+    });
+    return this.app.getSyncJobs(authorization);
   }
 
   @Post("/sync-jobs")
-  async createSyncJob(@Req() req: Request, @Body() body: any) {
-    if (!parseAuthorizationHeader(req)) throw new HttpException(createApiErrorResponse("UNAUTHENTICATED", "Session tidak valid"), 401);
-    const newJob = {
-      id: `job-${Date.now()}`,
-      type: body.type,
-      status: "QUEUED",
-      schoolId: body.schoolId || "all",
-      note: body.note,
-      createdAt: Date.now()
-    };
-    syncJobs.unshift(newJob);
-    return { job: newJob };
+  async createSyncJob(@Req() req: Request, @Body() rawBody: unknown) {
+    const authorization = this.requireAuthorization(req);
+    const parsed = SyncJobCreateSchema.safeParse(rawBody);
+    if (!parsed.success) badRequest(parsed.error);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: parsed.data.schoolId ? { schoolId: parsed.data.schoolId } : {},
+    });
+    return this.app.createSyncJob(authorization, parsed.data);
   }
 
   @Patch("/sync-jobs/:id/status")
-  async updateSyncJobStatus(@Req() req: Request, @Param("id") id: string, @Body() body: any) {
-    if (!parseAuthorizationHeader(req)) throw new HttpException(createApiErrorResponse("UNAUTHENTICATED", "Session tidak valid"), 401);
-    const job = syncJobs.find(j => j.id === id);
-    if (!job) throw new HttpException(createApiErrorResponse("NOT_FOUND", "Job tidak ditemukan"), 404);
-    job.status = body.status;
-    return { job };
+  async updateSyncJobStatus(@Req() req: Request, @Param("id") id: string, @Body() rawBody: unknown) {
+    const authorization = this.requireAuthorization(req);
+    const parsed = SyncJobStatusSchema.safeParse(rawBody);
+    if (!parsed.success) badRequest(parsed.error);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: {},
+    });
+    return this.app.updateSyncJobStatus(authorization, id, parsed.data.status);
   }
 
   // -- Broadcasts --
   @Get("/broadcasts")
   @Header("cache-control", "no-store")
   async getBroadcasts(@Req() req: Request) {
-    if (!parseAuthorizationHeader(req)) throw new HttpException(createApiErrorResponse("UNAUTHENTICATED", "Session tidak valid"), 401);
-    return { broadcasts };
+    const authorization = this.requireAuthorization(req);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: {},
+    });
+    return this.app.getBroadcasts(authorization);
   }
 
   @Post("/broadcasts")
-  async createBroadcast(@Req() req: Request, @Body() body: any) {
-    if (!parseAuthorizationHeader(req)) throw new HttpException(createApiErrorResponse("UNAUTHENTICATED", "Session tidak valid"), 401);
-    const newBc = {
-      id: `bc-${Date.now()}`,
-      title: body.title,
-      message: body.message,
-      targetAudience: body.targetAudience,
-      status: "SENT",
-      createdAt: Date.now()
-    };
-    broadcasts.unshift(newBc);
-    return { broadcast: newBc };
+  async createBroadcast(@Req() req: Request, @Body() rawBody: unknown) {
+    const authorization = this.requireAuthorization(req);
+    const parsed = BroadcastCreateSchema.safeParse(rawBody);
+    if (!parsed.success) badRequest(parsed.error);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource:
+        parsed.data.target.mode === "SCHOOL"
+          ? { schoolId: parsed.data.target.schoolId }
+          : {},
+    });
+    return this.app.createBroadcast(authorization, parsed.data);
+  }
+
+  @Delete("/broadcasts/:id")
+  async deleteBroadcast(@Req() req: Request, @Param("id") id: string) {
+    const authorization = this.requireAuthorization(req);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: {},
+    });
+    return this.app.deleteBroadcast(authorization, id);
   }
 
   // -- Support Tickets --
   @Get("/support-tickets")
   @Header("cache-control", "no-store")
   async getSupportTickets(@Req() req: Request) {
-    if (!parseAuthorizationHeader(req)) throw new HttpException(createApiErrorResponse("UNAUTHENTICATED", "Session tidak valid"), 401);
-    return { tickets: supportTickets };
+    const authorization = this.requireAuthorization(req);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: {},
+    });
+    return this.app.getSupportTickets(authorization);
+  }
+
+  @Post("/support-tickets")
+  async createSupportTicket(@Req() req: Request, @Body() rawBody: unknown) {
+    const authorization = this.requireAuthorization(req);
+    const parsed = SupportCreateSchema.safeParse(rawBody);
+    if (!parsed.success) badRequest(parsed.error);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: { schoolId: parsed.data.schoolId },
+    });
+    return this.app.createSupportTicket(authorization, parsed.data);
   }
 
   @Patch("/support-tickets/:id/status")
-  async updateTicketStatus(@Req() req: Request, @Param("id") id: string, @Body() body: any) {
-    if (!parseAuthorizationHeader(req)) throw new HttpException(createApiErrorResponse("UNAUTHENTICATED", "Session tidak valid"), 401);
-    const t = supportTickets.find(t => t.id === id);
-    if (!t) throw new HttpException(createApiErrorResponse("NOT_FOUND", "Ticket tidak ditemukan"), 404);
-    t.status = body.status;
-    return { ticket: t };
+  async updateTicketStatus(@Req() req: Request, @Param("id") id: string, @Body() rawBody: unknown) {
+    const authorization = this.requireAuthorization(req);
+    const parsed = SupportStatusSchema.safeParse(rawBody);
+    if (!parsed.success) badRequest(parsed.error);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: {},
+    });
+    return this.app.updateSupportTicketStatus(authorization, id, parsed.data.status);
+  }
+
+  @Delete("/support-tickets/:id")
+  async deleteTicket(@Req() req: Request, @Param("id") id: string) {
+    const authorization = this.requireAuthorization(req);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: {},
+    });
+    return this.app.deleteSupportTicket(authorization, id);
   }
 
   // -- Audit Logs --
   @Get("/audit-logs")
   @Header("cache-control", "no-store")
   async getAuditLogs(@Req() req: Request) {
-    if (!parseAuthorizationHeader(req)) throw new HttpException(createApiErrorResponse("UNAUTHENTICATED", "Session tidak valid"), 401);
-    return { logs: auditLogs };
+    const authorization = this.requireAuthorization(req);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: {},
+    });
+    return this.app.getAuditLogs(authorization);
+  }
+
+  @Get("/global-config")
+  @Header("cache-control", "no-store")
+  async getGlobalConfig(@Req() req: Request) {
+    const authorization = this.requireAuthorization(req);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: {},
+    });
+    return this.app.getGlobalConfig(authorization);
+  }
+
+  @Put("/global-config")
+  async saveGlobalConfig(@Req() req: Request, @Body() rawBody: unknown) {
+    const authorization = this.requireAuthorization(req);
+    const parsed = GlobalConfigSchema.safeParse(rawBody);
+    if (!parsed.success) badRequest(parsed.error);
+    await this.policyClient.assertAllowed(authorization, {
+      action: CAPABILITIES.schoolManage,
+      resource: {},
+    });
+    return this.app.saveGlobalConfig(authorization, parsed.data);
+  }
+
+  private requireAuthorization(req: Request): string {
+    const authorization = parseAuthorizationHeader(req);
+    if (!authorization) {
+      throw new HttpException(
+        createApiErrorResponse("UNAUTHENTICATED", "Session tidak valid"),
+        401
+      );
+    }
+    return authorization;
   }
 }

@@ -7,6 +7,15 @@ export const SchoolSchema = z.object({
   schoolId: z.string(),
   name: z.string(),
   status: z.enum(["active", "inactive"]).default("active"),
+  district: z.string().nullable().optional(),
+  npsn: z.string().nullable().optional(),
+  authEmail: z.string().nullable().optional(),
+  adminEmail: z.string().nullable().optional(),
+  backupEmail: z.string().nullable().optional(),
+  adminAccessActive: z.boolean().default(true),
+  adminMustChangePassword: z.boolean().default(true),
+  adminLastLoginAt: z.string().nullable().optional(),
+  adminPasswordChangedAt: z.string().nullable().optional(),
   latitude: z.number().nullable().optional(),
   longitude: z.number().nullable().optional()
 });
@@ -15,6 +24,12 @@ export type SchoolDto = z.infer<typeof SchoolSchema>;
 export const UpdateSchoolSettingsRequestSchema = z.object({
   name: z.string().min(1).optional(),
   status: z.enum(["active", "inactive"]).optional(),
+  district: z.string().optional(),
+  npsn: z.string().optional(),
+  authEmail: z.string().optional(),
+  adminEmail: z.string().optional(),
+  backupEmail: z.string().optional(),
+  adminAccessActive: z.boolean().optional(),
   latitude: z.number().nullable().optional(),
   longitude: z.number().nullable().optional()
 });
@@ -118,6 +133,12 @@ export const CanonicalSessionPrincipalSchema = z.object({
   activeMembershipId: z.string(),
   activeSchoolId: z.string(),
   activeRole: z.string(),
-  serviceStatus: z.enum(["active", "limited", "disabled"])
+  serviceStatus: z.enum(["active", "limited", "disabled"]),
+  requiresPasswordChange: z.boolean().default(false)
 });
 export type CanonicalSessionPrincipal = z.infer<typeof CanonicalSessionPrincipalSchema>;
+
+export const ChangeSchoolAdminPasswordRequestSchema = z.object({
+  newPassword: z.string().min(6)
+});
+export type ChangeSchoolAdminPasswordRequest = z.infer<typeof ChangeSchoolAdminPasswordRequestSchema>;
