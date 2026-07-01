@@ -1,6 +1,7 @@
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
+  binaryTargets = ["native", "linux-musl", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -17,6 +18,10 @@ model School {
   ServiceStatus  ServiceStatus?
   Memberships    Membership[]
   AuditLogs      AuditLog[]
+  GasSyncJobs    GasSyncJob[]      @relation("GasSyncJobSchool")
+  GasBroadcasts  GasBroadcast[]    @relation("GasBroadcastTargetSchool")
+  GasSupports    GasSupportTicket[]
+  GasAuditEvents GasAuditEvent[]   @relation("GasAuditEventSchool")
 }
 
 model ServiceStatus {
@@ -57,4 +62,67 @@ model IdentityAccount {
   userId     String
 
   @@unique([provider, idToken])
+}
+
+model GasSyncJob {
+  gasSyncJobId String   @id
+  type         String
+  status       String
+  schoolId     String?
+  note         String?
+  createdAt    DateTime
+  updatedAt    DateTime
+  createdBy    String?
+  School       School?  @relation("GasSyncJobSchool", fields: [schoolId], references: [schoolId])
+
+  @@index([schoolId, createdAt])
+}
+
+model GasBroadcast {
+  gasBroadcastId String   @id
+  title          String
+  message        String
+  targetMode     String
+  targetSchoolId String?
+  createdAt      DateTime
+  createdBy      String?
+  TargetSchool   School?  @relation("GasBroadcastTargetSchool", fields: [targetSchoolId], references: [schoolId])
+
+  @@index([targetSchoolId, createdAt])
+}
+
+model GasSupportTicket {
+  gasSupportTicketId String   @id
+  type               String
+  schoolId           String
+  reason             String?
+  status             String
+  createdAt          DateTime
+  updatedAt          DateTime
+  createdBy          String?
+  School             School   @relation(fields: [schoolId], references: [schoolId])
+
+  @@index([schoolId, createdAt])
+}
+
+model GasAuditEvent {
+  gasAuditEventId String   @id
+  schoolId        String?
+  action          String
+  entity          String
+  entityId        String
+  performedBy     String
+  details         String
+  createdAt       DateTime
+  School          School?  @relation("GasAuditEventSchool", fields: [schoolId], references: [schoolId])
+
+  @@index([schoolId, createdAt])
+  @@index([action, createdAt])
+}
+
+model GasGlobalConfig {
+  configKey  String   @id
+  jsonText   String
+  updatedAt  DateTime
+  updatedBy  String?
 }
